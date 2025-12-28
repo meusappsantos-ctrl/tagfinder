@@ -1,0 +1,7 @@
+{
+  "name": "TagFinder Login",
+  "description": "A secure and aesthetic login page integrated with Firebase Authentication.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
