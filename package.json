@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "firebase": "^12.7.0",
-    "xlsx": "latest"
+    "lucide-react": "0.460.0",
+    "xlsx": "latest",
+    "firebase": "^12.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
