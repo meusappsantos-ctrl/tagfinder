@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TagFinder Auth</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TagFinder" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/8065/8065261.png" />
+    <link rel="manifest" href="manifest.json" />
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
@@ -30,11 +39,21 @@
         }
       }
       
-      // Captura erros globais para ajudar no debug em produção
       window.onerror = function(msg, url, lineNo, columnNo, error) {
         console.error('Erro Global:', msg, 'no arquivo:', url, 'linha:', lineNo);
         return false;
       };
+
+      // Registrar Service Worker para PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then(reg => {
+            console.log('SW registrado com sucesso:', reg.scope);
+          }).catch(err => {
+            console.log('Falha ao registrar SW:', err);
+          });
+        });
+      }
     </script>
 
     <style>
@@ -67,9 +86,9 @@
     "firebase/auth": "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js",
     "firebase/firestore": "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "firebase/": "https://esm.sh/firebase@^12.7.0/",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "firebase/": "https://esm.sh/firebase@^12.7.0/"
   }
 }
 </script>
