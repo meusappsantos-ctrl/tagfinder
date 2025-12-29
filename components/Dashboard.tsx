@@ -231,29 +231,29 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; s
   return (
     <div 
       onClick={onSelect} 
-      className="relative group flex flex-col h-full bg-slate-900/40 backdrop-blur-xl rounded-[2rem] border border-slate-800/60 p-1 shadow-lg hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-500 cursor-pointer overflow-hidden ring-1 ring-inset ring-white/5 group-hover:-translate-y-1.5"
+      className="relative group flex flex-col bg-slate-900/40 backdrop-blur-xl rounded-2xl border border-slate-800/60 p-1 shadow-md hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 cursor-pointer overflow-hidden ring-1 ring-inset ring-white/5 active:scale-[0.98]"
     >
-      <div className="p-6 flex flex-col h-full gap-4 relative z-10">
-        <div className="flex items-start justify-between gap-3">
+      <div className="p-4 flex flex-col gap-3 relative z-10">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="text-2xl font-black text-white truncate tracking-tighter leading-tight group-hover:text-blue-400 transition-colors uppercase">
+            <h3 className="text-xl font-black text-white truncate tracking-tighter leading-tight group-hover:text-blue-400 transition-colors uppercase">
               <HighlightedText text={tagValue} highlight={searchHighlight} />
             </h3>
           </div>
-          <div className={`flex-shrink-0 w-12 h-12 rounded-2xl bg-slate-800/80 flex items-center justify-center text-slate-500 group-hover:bg-gradient-to-br ${config.gradient} group-hover:text-white transition-all duration-500 shadow-xl`}>
-             <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
+          <div className={`flex-shrink-0 w-8 h-8 rounded-xl bg-slate-800/80 flex items-center justify-center text-slate-500 group-hover:bg-gradient-to-br ${config.gradient} group-hover:text-white transition-all duration-300 shadow-lg`}>
+             <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
 
-        <div className="mt-auto space-y-2.5">
-          <div className="flex items-center gap-2 text-slate-500 bg-slate-950/40 px-3 py-1.5 rounded-xl border border-white/5 transition-colors group-hover:border-white/10">
-            <MapPin className="w-3.5 h-3.5" />
-            <span className="text-xs font-semibold truncate tracking-tight">{localValue}</span>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-slate-500 bg-slate-950/40 px-2 py-1 rounded-lg border border-white/5 transition-colors group-hover:border-white/10">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            <span className="text-[10px] font-bold truncate tracking-tight">{localValue}</span>
           </div>
           
-          <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 px-1 pt-1 border-t border-white/5 group-hover:text-slate-500">
-             <div className="flex items-center gap-1.5 tracking-widest uppercase">{config.label}</div>
-             <div>{item.createdAt ? 'REGISTRADO' : 'PENDENTE'}</div>
+          <div className="flex items-center justify-between text-[8px] font-black text-slate-600 px-0.5 pt-1.5 border-t border-white/5 group-hover:text-slate-500 uppercase tracking-widest">
+             <div className="flex items-center gap-1">{config.label}</div>
+             <div>{item.createdAt ? 'OK' : '...'}</div>
           </div>
         </div>
       </div>
@@ -388,7 +388,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
       </div>
 
       {displayItems.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fadeIn">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 animate-fadeIn">
           {displayItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} searchHighlight={searchTerm} />)}
         </div>
       ) : (
