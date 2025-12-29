@@ -213,7 +213,16 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                     .map(([key, value]) => (
                       <div key={key} className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-colors">
                         <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Database className="w-3 h-3" /> {key}</h5>
-                        <p className="text-white font-semibold break-all">{String(value)}</p>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={String(value)}
+                            onChange={(e) => setEditData({ ...editData, [key]: e.target.value })}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-white outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/40 transition-all font-bold"
+                          />
+                        ) : (
+                          <p className="text-white font-semibold break-all">{String(value)}</p>
+                        )}
                       </div>
                   ))}
               </div>
