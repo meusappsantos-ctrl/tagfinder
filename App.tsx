@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from './services/firebase';
@@ -22,7 +23,7 @@ const App: React.FC = () => {
 
   if (authState === AuthState.LOADING) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
           <p className="text-slate-400 font-medium">Carregando...</p>
@@ -32,7 +33,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-slate-900 text-slate-100">
       {user ? <Dashboard user={user} /> : <Login />}
     </div>
   );
