@@ -15,7 +15,7 @@ import {
   getDocs 
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown, Layers } from 'lucide-react';
+import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown, Layers, Locate } from 'lucide-react';
 
 declare const L: any;
 
@@ -136,6 +136,24 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
 const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({ items, onClose }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
+  const userMarkerRef = useRef<any>(null);
+  const [userPos, setUserPos] = useState<[number, number] | null>(null);
+
+  useEffect(() => {
+    // Monitoramento constante da localização
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const newPos: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setUserPos(newPos);
+        if (userMarkerRef.current && mapInstance.current) {
+            userMarkerRef.current.setLatLng(newPos);
+        }
+      },
+      (err) => console.log("GPS erro ou negado", err),
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
 
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
@@ -144,7 +162,18 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
       const map = L.map(mapRef.current).setView([-15.7801, -47.9292], 4);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
       const bounds = L.latLngBounds([]);
-      let hasMarkers = false;
+      let hasBounds = false;
+
+      // Marcador inicial do Usuário
+      if (userPos) {
+        userMarkerRef.current = L.circleMarker(userPos, {
+          radius: 12, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 0.8, className: 'user-marker-pulse'
+        }).addTo(map);
+        userMarkerRef.current.bindTooltip("Você está aqui", { permanent: false, direction: 'top' });
+        bounds.extend(userPos);
+        hasBounds = true;
+      }
+
       items.forEach(item => {
         const geo = item.data?.["Geolocalização"];
         if (geo) {
@@ -162,15 +191,23 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
             marker.bindTooltip(tagName, { permanent: true, direction: 'top', className: 'tag-label', offset: [0, -5] }).openTooltip();
             marker.bindPopup(`<div class="p-1"><p class="text-xs font-black text-slate-900 uppercase mb-2">${tagName}</p><a href="https://earth.google.com/web/search/${lat},${lng}" target="_blank" class="inline-block bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-bold no-underline">Ver no Earth</a></div>`);
             bounds.extend([lat, lng]);
-            hasMarkers = true;
+            hasBounds = true;
           }
         }
       });
-      if (hasMarkers) map.fitBounds(bounds, { padding: [30, 30] });
+      if (hasBounds) map.fitBounds(bounds, { padding: [50, 50] });
       mapInstance.current = map;
     } catch (e) { console.error(e); }
     return () => { if (mapInstance.current) mapInstance.current.remove(); };
-  }, [items]);
+  }, [items, userPos]);
+
+  const centerOnUser = () => {
+    if (userPos && mapInstance.current) {
+        mapInstance.current.setView(userPos, 17, { animate: true });
+    } else {
+        alert("Aguardando sinal de GPS...");
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-sm">
@@ -178,20 +215,58 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
         <div className="p-4 sm:p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
           <div className="flex items-center gap-3">
              <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl"><Globe className="w-5 h-5" /></div>
-             <h3 className="font-black text-white text-lg tracking-tighter">Mapa de Ativos</h3>
+             <h3 className="font-black text-white text-lg tracking-tighter">Posicionamento Real</h3>
           </div>
-          <button onClick={onClose} className="p-2 sm:p-4 bg-slate-700 rounded-xl text-slate-400"><X className="w-6 h-6" /></button>
+          <div className="flex gap-2">
+            <button onClick={centerOnUser} className="p-2 bg-blue-600 text-white rounded-xl shadow-lg active:scale-95"><Locate className="w-6 h-6" /></button>
+            <button onClick={onClose} className="p-2 bg-slate-700 rounded-xl text-slate-400 active:scale-95"><X className="w-6 h-6" /></button>
+          </div>
         </div>
-        <div className="flex-1 relative bg-slate-900"><div ref={mapRef} className="absolute inset-0 z-0" /></div>
+        <div className="flex-1 relative bg-slate-900">
+            <div ref={mapRef} className="absolute inset-0 z-0" />
+            <div className="absolute bottom-6 left-6 z-10 p-4 bg-slate-800/80 backdrop-blur rounded-2xl border border-white/5 pointer-events-none">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status GPS</p>
+                <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${userPos ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`}></div>
+                    <span className="text-xs font-bold text-white">{userPos ? 'Localização Atualizada' : 'Buscando sinal...'}</span>
+                </div>
+            </div>
+            <style>{`
+                .user-marker-pulse { animation: pulse-blue 2s infinite; }
+                @keyframes pulse-blue {
+                    0% { stroke-width: 3px; stroke: #fff; r: 12; }
+                    50% { stroke-width: 12px; stroke: rgba(59, 130, 246, 0.5); r: 16; }
+                    100% { stroke-width: 3px; stroke: #fff; r: 12; }
+                }
+            `}</style>
+        </div>
       </div>
     </div>
   );
 };
 
+// Funções de filtragem globais para evitar redundância
+const isKeyVisible = (k: string) => {
+  if (!k) return false;
+  const key = k.toLowerCase();
+  return !key.includes('geo') && 
+         !key.includes('link') && 
+         !key.includes('empty') && 
+         !k.startsWith('__') &&
+         k.trim() !== "";
+};
+
 const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; user: User; onClose: () => void; onDelete: (id: string) => void; }> = ({ item, groupKey, config, user, onClose, onDelete }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [editData, setEditData] = useState<Record<string, any>>(item.data || {});
+  const [editData, setEditData] = useState<Record<string, any>>(() => {
+    // Ao abrir detalhes, limpamos campos EMPTY do estado local de edição
+    const filtered: Record<string, any> = {};
+    Object.entries(item.data || {}).forEach(([k, v]) => {
+      if (isKeyVisible(k)) filtered[k] = v;
+    });
+    return filtered;
+  });
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(() => {
      if (item.data?.["Geolocalização"]) {
          const parts = item.data["Geolocalização"].split(',');
@@ -237,30 +312,33 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
     document.body.removeChild(link);
   };
 
-  // Função para filtrar chaves indesejadas (geo, link, empty, __)
-  const isKeyVisible = (k: string) => {
-    const key = k.toLowerCase();
-    return !key.includes('geo') && 
-           !key.includes('link') && 
-           !key.includes('empty') && 
-           !k.startsWith('__');
-  };
-
   return (
       <div className="bg-slate-900 min-h-screen sm:min-h-[500px] sm:rounded-[2.5rem] border-x sm:border border-slate-700 shadow-2xl overflow-hidden flex flex-col animate-slideUp">
           <div className={`p-5 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-20`}>
               <div className="flex items-center gap-4 sm:gap-6">
+                  {/* Fixed: Replaced non-existent 'onBack' with 'onClose' prop */}
                   <button onClick={onClose} className="p-2 sm:p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all"><ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" /></button>
                   <h2 className="text-lg sm:text-2xl font-black tracking-tighter uppercase truncate max-w-[180px] sm:max-w-none">{isEditing ? "Editando" : (editData["Tag"] || "Detalhes")}</h2>
               </div>
               <div className="flex gap-2">
-                 {item.userId === user.uid && !isEditing && (
+                 {!isEditing && (
                      <>
-                        <button onClick={() => setIsEditing(true)} className="px-4 py-2 sm:px-6 sm:py-3 bg-white/20 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest">Editar</button>
-                        <button onClick={() => { if(confirm("Excluir?")) onDelete(item.id) }} className="p-2 sm:p-3 bg-red-500/20 text-red-400 rounded-lg"><Trash2 className="w-5 h-5" /></button>
+                        <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-white/20 rounded-lg text-xs font-black uppercase flex items-center gap-2 transition-all hover:bg-white/30">
+                            <Edit className="w-4 h-4" /> Editar
+                        </button>
+                        <button onClick={() => { if(confirm("Excluir este ativo permanentemente?")) onDelete(item.id) }} className="p-2 bg-red-500/20 text-red-400 rounded-lg transition-all hover:bg-red-500/40">
+                            <Trash2 className="w-5 h-5" />
+                        </button>
                      </>
                  )}
-                 {isEditing && <button onClick={() => setIsEditing(false)} className="p-2 sm:p-3 bg-white/10 rounded-lg"><X className="w-6 h-6" /></button>}
+                 {isEditing && (
+                    <div className="flex gap-2">
+                        <button onClick={() => { if(confirm("Deseja excluir enquanto edita?")) onDelete(item.id) }} className="p-2 bg-red-500/20 text-red-400 rounded-lg transition-all hover:bg-red-500/40">
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                        <button onClick={() => setIsEditing(false)} className="p-2 bg-white/10 rounded-lg"><X className="w-5 h-5" /></button>
+                    </div>
+                 )}
               </div>
           </div>
           <div className="p-4 sm:p-8 lg:p-12 space-y-6 sm:space-y-10 flex-1 overflow-y-auto pb-24 sm:pb-8">
@@ -269,13 +347,13 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                     <div className="flex items-center gap-4">
                       <div className={`p-3 rounded-xl border ${location ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}><MapPin className="w-5 h-5" /></div>
                       <div className="flex-1">
-                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">GPS Vinculado</h4>
+                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Coordenadas GPS</h4>
                          <p className="text-xs sm:text-sm text-slate-200 font-mono font-bold truncate">{location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : "Não registrado"}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {isEditing ? (
-                            <button onClick={handleGetLocation} className="w-full py-3 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl">{gettingLocation ? "Aguardando GPS..." : "Vincular GPS"}</button>
+                            <button onClick={handleGetLocation} className="w-full py-3 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95">{gettingLocation ? "Obtendo..." : "Atualizar GPS"}</button>
                         ) : location && (
                             <>
                                 <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`, '_blank')} className="w-full py-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2"><Navigation2 className="w-3 h-3" /> Rota</button>
@@ -289,7 +367,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                 </div>
                 <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 flex items-center gap-4 shadow-xl">
                     <div className="p-3 bg-slate-700/50 text-slate-400 rounded-xl border border-slate-600/30"><Clock className="w-5 h-5" /></div>
-                    <div><h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</h4><p className="text-xs sm:text-sm text-slate-200 font-bold">{item.createdAt ? item.createdAt.toDate().toLocaleDateString('pt-BR') : "---"}</p></div>
+                    <div><h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data de Cadastro</h4><p className="text-xs sm:text-sm text-slate-200 font-bold">{item.createdAt ? item.createdAt.toDate().toLocaleDateString('pt-BR') : "---"}</p></div>
                 </div>
               </div>
               <div className="space-y-4">
@@ -299,7 +377,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                         <div key={key} className="bg-slate-800/40 p-4 sm:p-6 rounded-xl border border-slate-700/50">
                           <h5 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2"><Database className="w-3 h-3 text-blue-400" /> {key}</h5>
                           {isEditing ? (
-                            <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none font-bold" />
+                            <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none font-bold focus:border-blue-500 transition-colors" />
                           ) : (
                             <p className="text-white font-black text-sm sm:text-base break-all uppercase tracking-tight">{String(value)}</p>
                           )}
@@ -308,29 +386,48 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                  </div>
               </div>
               {isEditing && (
-                <button onClick={handleSave} disabled={isSaving} className={`fixed bottom-6 left-6 right-6 sm:relative sm:bottom-0 sm:left-0 sm:right-0 py-5 rounded-2xl text-white font-black uppercase tracking-widest text-xs ${config.color} shadow-2xl z-30 flex justify-center items-center gap-3`}>{isSaving ? <Loader2 className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5"/>} Salvar</button>
+                <div className="grid grid-cols-2 gap-4 pt-6">
+                    <button onClick={() => { if(confirm("Deseja realmente excluir este registro?")) onDelete(item.id) }} className="py-5 rounded-2xl bg-red-600/20 text-red-400 font-black uppercase tracking-widest text-[10px] flex justify-center items-center gap-2 hover:bg-red-600/40 transition-all">
+                        <Trash2 className="w-4 h-4" /> Excluir
+                    </button>
+                    <button onClick={handleSave} disabled={isSaving} className={`py-5 rounded-2xl text-white font-black uppercase tracking-widest text-[10px] ${config.color} shadow-2xl flex justify-center items-center gap-3 transition-all active:scale-95`}>
+                        {isSaving ? <Loader2 className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5"/>} Salvar Alterações
+                    </button>
+                </div>
               )}
           </div>
       </div>
   );
 };
 
-const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; searchHighlight: string; }> = ({ item, config, onSelect, searchHighlight }) => {
+const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; onDelete: (e: React.MouseEvent, id: string) => void; onEdit: (e: React.MouseEvent, item: GroupItem) => void; searchHighlight: string; }> = ({ item, config, onSelect, onDelete, onEdit, searchHighlight }) => {
   const data = item.data || {};
   const tagValue = data["Tag"] || item.content.split('|')[0].trim().replace(/^Item:\s*/i, '');
   const localValue = data["Local"] || "S/ Local";
   const hasGeo = !!data["Geolocalização"];
+  const isPainel = config.id === 'painel';
+
   return (
-    <div onClick={onSelect} className="relative flex flex-col bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/60 p-1 shadow hover:shadow-xl transition-all cursor-pointer active:scale-95">
+    <div onClick={onSelect} className="relative flex flex-col bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/60 p-1 shadow hover:shadow-xl transition-all cursor-pointer active:scale-95 group overflow-hidden">
       <div className="p-4 sm:p-5 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-base sm:text-lg font-black text-white truncate tracking-tighter uppercase"><HighlightedText text={tagValue} highlight={searchHighlight} /></h3>
-          <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center text-slate-500"><ChevronRight className="w-4 h-4" /></div>
+          <h3 className="text-base sm:text-lg font-black text-white truncate tracking-tighter uppercase group-hover:text-blue-400 transition-colors"><HighlightedText text={tagValue} highlight={searchHighlight} /></h3>
+          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+             <button onClick={(e) => onEdit(e, item)} className="p-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-all"><Edit className="w-3.5 h-3.5" /></button>
+             <button onClick={(e) => onDelete(e, item.id)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/30 transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+          </div>
         </div>
         <div className="flex items-center gap-2 text-slate-400 bg-slate-900/30 px-2.5 py-1.5 rounded-lg border border-white/5">
           <MapPin className={`w-3.5 h-3.5 ${hasGeo ? 'text-emerald-500' : 'text-slate-600'}`} />
           <span className="text-[10px] font-bold truncate tracking-tight">{localValue}</span>
         </div>
+        
+        {isPainel && data["Equipamento"] && (
+            <div className="px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded text-[9px] text-orange-400 font-black uppercase tracking-tighter truncate">
+                {data["Equipamento"]}
+            </div>
+        )}
+
         <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-2 border-t border-white/5 uppercase tracking-widest">
            <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${hasGeo ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></div>{config.label}</div>
            <span>{hasGeo ? 'GPS OK' : 'SEM GPS'}</span>
@@ -393,9 +490,24 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     } catch (e) { alert('Erro'); } finally { setLoading(false); }
   };
 
+  const quickDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm("Deseja excluir este ativo?")) {
+        deleteDoc(doc(db, groupKey, id));
+    }
+  };
+
+  const quickEdit = (e: React.MouseEvent, item: GroupItem) => {
+    e.stopPropagation();
+    setSelectedItem(item);
+  };
+
   const filteredItems = items.filter(i => {
     const s = searchTerm.toLowerCase();
-    return !s || (i.data?.["Tag"] || "").toLowerCase().includes(s) || (i.data?.["Local"] || "").toLowerCase().includes(s);
+    const tag = (i.data?.["Tag"] || "").toLowerCase();
+    const local = (i.data?.["Local"] || "").toLowerCase();
+    const equip = (i.data?.["Equipamento"] || "").toLowerCase();
+    return !s || tag.includes(s) || local.includes(s) || equip.includes(s);
   });
 
   if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => setSelectedItem(null)} onDelete={(id) => deleteDoc(doc(db, groupKey, id)).then(() => setSelectedItem(null))} />;
@@ -403,42 +515,42 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
   return (
     <div className="pb-24 sm:pb-12 animate-fadeIn">
       <div className="p-6 sm:p-10 mb-6 bg-slate-800/60 rounded-[2rem] sm:rounded-[3rem] border border-slate-700 flex flex-col gap-6">
-        <div className="flex items-center gap-4 sm:gap-6">
-          <button onClick={onBack} className="p-3 bg-slate-700 rounded-xl text-slate-300"><ArrowLeft className="w-6 h-6" /></button>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-               <div className={`p-1 rounded bg-gradient-to-br ${config.gradient} text-white`}><Icon className="w-3 h-3" /></div>
-               <span className="text-[9px] uppercase tracking-widest font-black text-slate-500">{config.label}</span>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="p-3 bg-slate-700 rounded-xl text-slate-300 transition-all hover:bg-slate-600 active:scale-95"><ArrowLeft className="w-6 h-6" /></button>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                 <div className={`p-1 rounded bg-gradient-to-br ${config.gradient} text-white`}><Icon className="w-3 h-3" /></div>
+                 <span className="text-[9px] uppercase tracking-widest font-black text-slate-500">{config.label}</span>
+              </div>
+              <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tighter">Gerenciar</h2>
             </div>
-            <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tighter">Inventário</h2>
           </div>
+          <button onClick={() => setIsModalOpen(true)} className={`hidden sm:flex px-6 py-3 rounded-xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] tracking-widest items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all`}>
+            <Plus className="w-4 h-4" /> Adicionar
+          </button>
         </div>
       </div>
 
       <div className="flex flex-col gap-4 mb-8">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-          <input type="text" placeholder={`Pesquisar...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none font-bold placeholder-slate-500 shadow-inner" />
+          <input type="text" placeholder={`Buscar...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none font-bold placeholder-slate-500 shadow-inner focus:border-blue-500 transition-colors" />
         </div>
       </div>
 
       <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
-        {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} searchHighlight={searchTerm} />)}
+        {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} onDelete={quickDelete} onEdit={quickEdit} searchHighlight={searchTerm} />)}
       </div>
 
-      {/* Botão de Adição (Visível em Mobile e Desktop) */}
-      <button 
-        onClick={() => setIsModalOpen(true)} 
-        className={`fixed bottom-6 right-6 w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-[0_20px_50px_rgba(8,_112,_184,_0.7)] z-40 bg-gradient-to-r ${config.gradient} hover:scale-110 active:scale-90 transition-all cursor-pointer`}
-      >
-        <Plus className="w-8 h-8" />
-      </button>
+      {/* Botão flutuante para criação de novos itens */}
+      <button onClick={() => setIsModalOpen(true)} className={`fixed bottom-6 right-6 w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-[0_20px_50px_rgba(8,_112,_184,_0.7)] z-40 bg-gradient-to-r ${config.gradient} hover:scale-110 active:scale-90 transition-all cursor-pointer`}><Plus className="w-8 h-8" /></button>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-md">
           <div className="bg-slate-800 w-full h-[95vh] sm:h-auto sm:max-w-md sm:rounded-[2.5rem] border-t sm:border border-slate-600 overflow-y-auto">
             <div className={`p-6 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10 shadow-xl`}>
-              <h3 className="text-xl font-black tracking-tighter uppercase">Nova Tag</h3>
+              <h3 className="text-xl font-black tracking-tighter uppercase">Novo Registro</h3>
               <button onClick={() => setIsModalOpen(false)} className="p-2 bg-white/10 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSave} className="p-6 space-y-5">
@@ -453,53 +565,53 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                     <>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Tag do Painel</label>
-                           <input type="text" placeholder="Ex: PNL-01" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase" />
+                           <input type="text" placeholder="Ex: PNL-01" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase focus:border-blue-500 transition-colors" />
                         </div>
                         <div className="grid grid-cols-1 gap-2">
                            {['switch1', 'switch2', 'switch3'].map((sw, i) => (
                              <div key={sw} className="space-y-1">
                                 <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Switch {i+1}</label>
-                                <input type="text" placeholder={`Porta/Link`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono" />
+                                <input type="text" placeholder={`Porta/Link`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono focus:border-blue-500 transition-colors" />
                              </div>
                            ))}
                         </div>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Local</label>
-                           <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold">
+                           <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold focus:border-blue-500 transition-colors">
                               <option value="">Selecione o Local...</option>
                               {Object.keys(SYSTEM_DATA).map(loc => <option key={loc} value={loc}>{loc}</option>)}
                               <option value="NOVO">+ ADICIONAR NOVO LOCAL</option>
                            </select>
-                           {formData.local === "NOVO" && <input type="text" placeholder="Digite o novo local" value={formData.customLocal} onChange={e => setFormData({...formData, customLocal: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold" />}
+                           {formData.local === "NOVO" && <input type="text" placeholder="Digite o novo local" value={formData.customLocal} onChange={e => setFormData({...formData, customLocal: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold shadow-xl" />}
                         </div>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Equipamento</label>
-                           <select disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold disabled:opacity-40">
+                           <select disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold disabled:opacity-40 focus:border-blue-500 transition-colors">
                               <option value="">Selecione o Equipamento...</option>
                               {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                               <option value="NOVO">+ ADICIONAR NOVO EQUIPAMENTO</option>
                            </select>
-                           {formData.equipamento === "NOVO" && <input type="text" placeholder="Digite o novo equipamento" value={formData.customEquipamento} onChange={e => setFormData({...formData, customEquipamento: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold" />}
+                           {formData.equipamento === "NOVO" && <input type="text" placeholder="Digite o novo equipamento" value={formData.customEquipamento} onChange={e => setFormData({...formData, customEquipamento: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold shadow-xl" />}
                         </div>
                     </>
                 ) : (
                     <>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Tag do Ativo</label>
-                           <input type="text" placeholder="Ex: CTV-01" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase" />
+                           <input type="text" placeholder="Ex: CTV-01" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase focus:border-blue-500 transition-colors" />
                         </div>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Localização</label>
-                           <input type="text" placeholder="Ex: Sala Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold" />
+                           <input type="text" placeholder="Ex: Sala Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold focus:border-blue-500 transition-colors" />
                         </div>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">IP / ID</label>
-                           <input type="text" placeholder="Ex: 10.0.0.1" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono" />
+                           <input type="text" placeholder="Ex: 10.0.0.1" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono focus:border-blue-500 transition-colors" />
                         </div>
                     </>
                 )}
               </div>
-              <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase tracking-widest text-[10px] shadow-2xl flex justify-center items-center gap-3 mt-4`}>
+              <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase tracking-widest text-[10px] shadow-2xl flex justify-center items-center gap-3 mt-4 active:scale-95 transition-all`}>
                  {loading ? <Loader2 className="animate-spin w-5 h-5"/> : "Salvar Registro"}
               </button>
             </form>
@@ -538,24 +650,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[8px] font-black uppercase tracking-widest text-blue-400">
               <div className="w-1 h-1 rounded-full bg-blue-400 animate-ping"></div> TagFinder Cloud
             </div>
-            <button onClick={() => signOut(auth)} className="p-3 bg-slate-800 border border-slate-700 rounded-xl text-slate-500 active:scale-90"><LogOut className="w-5 h-5" /></button>
+            <button onClick={() => signOut(auth)} className="p-3 bg-slate-800 border border-slate-700 rounded-xl text-slate-500 active:scale-90 transition-all hover:bg-slate-700/50"><LogOut className="w-5 h-5" /></button>
           </div>
-          <div><h1 className="text-4xl sm:text-6xl font-black tracking-tighter leading-tight mb-2">Olá, <span className="text-blue-400">{user.displayName || user.email?.split('@')[0]}</span></h1><p className="text-slate-500 text-sm font-medium">Gestão inteligente de inventário técnico.</p></div>
-          <button onClick={handleOpenGlobalMap} disabled={loadingMap} className="w-full sm:w-auto px-8 py-4 bg-slate-800 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 border border-white/5 shadow-xl transition-all">
-            {loadingMap ? <Loader2 className="w-4 h-4 animate-spin"/> : <Globe className="w-5 h-5 text-blue-400" />} Mapa Global
+          <div><h1 className="text-4xl sm:text-6xl font-black tracking-tighter leading-tight mb-2">Olá, <span className="text-blue-400">{user.displayName || user.email?.split('@')[0]}</span></h1><p className="text-slate-500 text-sm font-medium">Gestão integrada e georreferenciada de ativos técnicos.</p></div>
+          <button onClick={handleOpenGlobalMap} disabled={loadingMap} className="w-full sm:w-auto px-8 py-4 bg-slate-800 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 border border-white/5 shadow-xl transition-all hover:bg-slate-700">
+            {loadingMap ? <Loader2 className="w-4 h-4 animate-spin"/> : <Globe className="w-5 h-5 text-blue-400" />} Mapa Global Georreferenciado
           </button>
         </header>
         <section className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 pb-12">
           {Object.entries(groupsConfig).map(([key, group]) => (
-             <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-800/40 backdrop-blur-2xl p-8 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] border border-slate-700/50 flex flex-col items-start transition-all active:scale-95 shadow-xl">
-               <div className={`w-14 h-14 sm:w-20 sm:h-20 rounded-2xl ${group.lightColor} ${group.textColor} flex items-center justify-center mb-6 ring-4 ring-white/5`}><group.icon className="w-7 h-7 sm:w-10 sm:h-10" /></div>
+             <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-800/40 backdrop-blur-2xl p-8 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] border border-slate-700/50 flex flex-col items-start transition-all active:scale-95 shadow-xl hover:bg-slate-700/60">
+               <div className={`w-14 h-14 sm:w-20 sm:h-20 rounded-2xl ${group.lightColor} ${group.textColor} flex items-center justify-center mb-6 ring-4 ring-white/5 group-hover:scale-110 transition-transform`}><group.icon className="w-7 h-7 sm:w-10 sm:h-10" /></div>
                <h2 className="text-2xl font-black mb-3 tracking-tighter">{group.label}</h2>
-               <div className={`inline-flex items-center gap-2 font-black text-[8px] uppercase tracking-widest ${group.textColor}`}>Acessar Módulo <ArrowRight className="w-3 h-3" /></div>
+               <div className={`inline-flex items-center gap-2 font-black text-[8px] uppercase tracking-widest ${group.textColor}`}>Acessar Inventário <ArrowRight className="w-3 h-3" /></div>
              </button>
           ))}
         </section>
       </div>
-      <footer className="py-8 text-center mt-auto"><p className="text-[8px] font-black text-slate-700 uppercase tracking-widest">&copy; 2024 TagFinder Enterprise</p></footer>
+      <footer className="py-8 text-center mt-auto"><p className="text-[8px] font-black text-slate-700 uppercase tracking-widest">&copy; 2024 TagFinder Enterprise - Monitoramento & Gestão</p></footer>
     </div>
   );
 };
