@@ -15,7 +15,7 @@ import {
   getDocs 
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown } from 'lucide-react';
+import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown, Layers } from 'lucide-react';
 
 declare const L: any;
 
@@ -35,6 +35,47 @@ interface GroupItem {
 
 type GroupType = 'ctv' | 'telecom' | 'embarcados' | 'painel';
 type ViewState = 'home' | GroupType;
+
+const SYSTEM_DATA: Record<string, string[]> = {
+  "SISTEMA 1": [
+    "TR-1081KS-03 (BC)", "TR-1082KS-13 (BCC)", "BELTI EE-1080KS-04 (MBW)", 
+    "BM-1080KS-04", "SE-1081KS-17", "SE-1081KS-03", "SE-1081KS-74", 
+    "SE-1081KS-13", "SE-1082KS-95 -(DRIVE)"
+  ],
+  "SISTEMA 2": [
+    "TR-1081KS-04", "TR-1081KS-52", "TR-1081KS-14 (bsm)", "TR-1081KS-05 (bsm)",
+    "SE-1081KS-52", "SE-1081KS-04", "SE-1081KS-76", "BELTI EE-1080KS-02",
+    "BM-1081KS-02", "SE-1081KS-50", "SE-1081KS-51", "SE-1081KS-56",
+    "SE-1081KS-27", "SE-1081KS-97", "SE-1081KS-14", "SE-1081KS-18 (bsm)",
+    "SE-1080KS-51 (bsm)"
+  ],
+  "SISTEMA 3": [
+    "TR-1081KS-11", "TR-1081KS-01", "BM-1081KS-03", "BELTI EE-1081KS03 (MBW)",
+    "SE-1081KS-01", "SE-1081KS-70", "SE-1081KS-15", "SE-1081KS-21",
+    "SE-1081KS-11", "SE-1081KS-91"
+  ],
+  "SISTEMA 4": [
+    "TR-1081KS-02", "TR-1081KS-12", "BM-1081KS-01", "BELTI EE-1081KS-01",
+    "SE-1081KS-02", "SE-1081KS-72", "SE-1081KS-12", "SE-1081KS-23", "SE-1081KS-93"
+  ],
+  "5ª BRITAGEM": [
+    "BM-1080KS-13", "BM-1080KS-12", "BM-1080KS-11", "TR-1080KS-81",
+    "TR-1085KS-36", "TR-1080KS-83", "TR-1080KS-88", "TR-1080KS-87",
+    "TR-1080KS-82", "TR-1080KS-85", "TR-1080KS-86", "TR-1080KS-80", "TR-1080KS-84"
+  ],
+  "CASA DE TRANSFERENCIA": [
+    "TR-1082KS-01", "TR-1082KS-02", "TR-1082KS-03", "TR-1082KS-04",
+    "TR-1082KS-05", "TR-1082KS-06", "TR-1080KS-37", "TR-1085KS-01",
+    "TR-1085KS-04", "TR-1083KS-01", "TR-1084KS-01", "TR-1085KS-05",
+    "SE-1084KS-01", "SE-1083KS-01", "SE-1082KS-02", "SE-1082KS-01",
+    "SE-1085KS-23", "SE-1082KS-03", "SE-1082KS-04", "SE-6021KS-01", "SE-1085KS-22"
+  ],
+  "OVERLAND": [
+    "TR-1083KS-03", "TR-1083KS-04", "SE-1084KS-22", "SE-1084KS-21",
+    "TR-1084KS-02", "TR-1083KS-02", "EE-1084KS-01 (mts)", "EE-1083KS-01 (mts)",
+    "SE-1083KS-02", "SE-1084KS-02"
+  ]
+};
 
 const groupsConfig = {
   ctv: { 
@@ -68,7 +109,6 @@ const HighlightedText: React.FC<{ text: string; highlight: string; className?: s
   );
 };
 
-// Componente para Mini Mapa de Visualização no Cadastro
 const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ lat, lng, tag }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
@@ -76,29 +116,18 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
   useEffect(() => {
     if (!mapRef.current) return;
     if (typeof L === 'undefined') return;
-
     if (mapInstance.current) {
         mapInstance.current.setView([lat, lng], 16);
         return;
     }
-
     const map = L.map(mapRef.current, { zoomControl: false, attributionControl: false }).setView([lat, lng], 16);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    
     const marker = L.circleMarker([lat, lng], {
       radius: 8, fillColor: '#3b82f6', color: '#ffffff', weight: 2, opacity: 1, fillOpacity: 1
     }).addTo(map);
-
     marker.bindTooltip(tag || "Nova Tag", { permanent: true, direction: 'top', className: 'tag-label' }).openTooltip();
-    
     mapInstance.current = map;
-
-    return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove();
-        mapInstance.current = null;
-      }
-    };
+    return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
   }, [lat, lng, tag]);
 
   return <div ref={mapRef} className="w-full h-32 rounded-xl border border-slate-600 overflow-hidden mt-2 grayscale-[0.5]" />;
@@ -111,14 +140,11 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
     if (typeof L === 'undefined') return;
-    
     try {
       const map = L.map(mapRef.current).setView([-15.7801, -47.9292], 4);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-      
       const bounds = L.latLngBounds([]);
       let hasMarkers = false;
-      
       items.forEach(item => {
         const geo = item.data?.["Geolocalização"];
         if (geo) {
@@ -129,30 +155,12 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
             if (item.groupType === 'telecom') color = '#818cf8';
             if (item.groupType === 'painel') color = '#fb923c';
             if (item.groupType === 'embarcados') color = '#34d399';
-            
             const marker = L.circleMarker([lat, lng], {
               radius: 10, fillColor: color, color: '#ffffff', weight: 2, opacity: 1, fillOpacity: 1
             }).addTo(map);
-            
             const tagName = item.data?.["Tag"] || "Equipamento";
-            
-            // MARCAÇÃO COM O NOME DA TAG (Permanent Tooltip)
-            marker.bindTooltip(tagName, { 
-                permanent: true, 
-                direction: 'top', 
-                className: 'tag-label',
-                offset: [0, -5]
-            }).openTooltip();
-
-            marker.bindPopup(`
-              <div class="p-1">
-                <p class="text-xs font-black text-slate-900 uppercase mb-2">${tagName}</p>
-                <a href="https://earth.google.com/web/search/${lat},${lng}" target="_blank" 
-                   class="inline-block bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-bold no-underline">
-                   Ver no Earth
-                </a>
-              </div>
-            `);
+            marker.bindTooltip(tagName, { permanent: true, direction: 'top', className: 'tag-label', offset: [0, -5] }).openTooltip();
+            marker.bindPopup(`<div class="p-1"><p class="text-xs font-black text-slate-900 uppercase mb-2">${tagName}</p><a href="https://earth.google.com/web/search/${lat},${lng}" target="_blank" class="inline-block bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-bold no-underline">Ver no Earth</a></div>`);
             bounds.extend([lat, lng]);
             hasMarkers = true;
           }
@@ -161,13 +169,12 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
       if (hasMarkers) map.fitBounds(bounds, { padding: [30, 30] });
       mapInstance.current = map;
     } catch (e) { console.error(e); }
-    
     return () => { if (mapInstance.current) mapInstance.current.remove(); };
   }, [items]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-sm">
-      <div className="bg-slate-800 w-full h-[90vh] sm:h-[85vh] sm:max-w-6xl sm:rounded-[2.5rem] overflow-hidden flex flex-col border-t sm:border border-slate-600">
+      <div className="bg-slate-800 w-full h-[90vh] sm:h-[85vh] sm:max-w-6xl sm:rounded-[2.5rem] overflow-hidden flex flex-col border-t sm:border border-slate-700">
         <div className="p-4 sm:p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
           <div className="flex items-center gap-3">
              <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl"><Globe className="w-5 h-5" /></div>
@@ -220,17 +227,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   const downloadItemKML = () => {
     if (!location) return;
     const tagName = editData["Tag"] || "Tag Sem Nome";
-    const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Placemark>
-    <name>${tagName}</name>
-    <description>Local: ${editData["Local"] || "N/A"}</description>
-    <Point>
-      <coordinates>${location.lng},${location.lat},0</coordinates>
-    </Point>
-  </Placemark>
-</kml>`;
-    
+    const kmlContent = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><name>${tagName}</name><description>Local: ${editData["Local"] || "N/A"}</description><Point><coordinates>${location.lng},${location.lat},0</coordinates></Point></Placemark></kml>`;
     const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -240,14 +237,21 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
     document.body.removeChild(link);
   };
 
-  const displayTitle = isEditing ? "Editando Ativo" : (editData["Tag"] || "Detalhes");
+  // Função para filtrar chaves indesejadas (geo, link, empty, __)
+  const isKeyVisible = (k: string) => {
+    const key = k.toLowerCase();
+    return !key.includes('geo') && 
+           !key.includes('link') && 
+           !key.includes('empty') && 
+           !k.startsWith('__');
+  };
 
   return (
       <div className="bg-slate-900 min-h-screen sm:min-h-[500px] sm:rounded-[2.5rem] border-x sm:border border-slate-700 shadow-2xl overflow-hidden flex flex-col animate-slideUp">
           <div className={`p-5 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-20`}>
               <div className="flex items-center gap-4 sm:gap-6">
                   <button onClick={onClose} className="p-2 sm:p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all"><ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" /></button>
-                  <h2 className="text-lg sm:text-2xl font-black tracking-tighter uppercase truncate max-w-[180px] sm:max-w-none">{displayTitle}</h2>
+                  <h2 className="text-lg sm:text-2xl font-black tracking-tighter uppercase truncate max-w-[180px] sm:max-w-none">{isEditing ? "Editando" : (editData["Tag"] || "Detalhes")}</h2>
               </div>
               <div className="flex gap-2">
                  {item.userId === user.uid && !isEditing && (
@@ -259,14 +263,11 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                  {isEditing && <button onClick={() => setIsEditing(false)} className="p-2 sm:p-3 bg-white/10 rounded-lg"><X className="w-6 h-6" /></button>}
               </div>
           </div>
-          
           <div className="p-4 sm:p-8 lg:p-12 space-y-6 sm:space-y-10 flex-1 overflow-y-auto pb-24 sm:pb-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 flex flex-col gap-4 shadow-xl">
                     <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-xl border ${location ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                         <MapPin className="w-5 h-5" />
-                      </div>
+                      <div className={`p-3 rounded-xl border ${location ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}><MapPin className="w-5 h-5" /></div>
                       <div className="flex-1">
                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">GPS Vinculado</h4>
                          <p className="text-xs sm:text-sm text-slate-200 font-mono font-bold truncate">{location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : "Não registrado"}</p>
@@ -274,71 +275,40 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {isEditing ? (
-                            <button onClick={handleGetLocation} className="w-full py-3 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl">
-                                {gettingLocation ? "Aguardando GPS..." : "Vincular Minha Posição"}
-                            </button>
+                            <button onClick={handleGetLocation} className="w-full py-3 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl">{gettingLocation ? "Aguardando GPS..." : "Vincular GPS"}</button>
                         ) : location && (
                             <>
-                                <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`, '_blank')} className="w-full py-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2">
-                                    <Navigation2 className="w-3 h-3" /> Como Chegar
-                                </button>
+                                <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`, '_blank')} className="w-full py-3 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2"><Navigation2 className="w-3 h-3" /> Rota</button>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <button onClick={() => window.open(`https://earth.google.com/web/search/${location.lat},${location.lng}`, '_blank')} className="w-full py-3 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-1">
-                                    <Globe className="w-3 h-3" /> Earth Web
-                                  </button>
-                                  <button onClick={downloadItemKML} className="w-full py-3 bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-1">
-                                    <FileDown className="w-3 h-3" /> KML
-                                  </button>
+                                  <button onClick={() => window.open(`https://earth.google.com/web/search/${location.lat},${location.lng}`, '_blank')} className="w-full py-3 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-1"><Globe className="w-3 h-3" /> Earth</button>
+                                  <button onClick={downloadItemKML} className="w-full py-3 bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-1"><FileDown className="w-3 h-3" /> KML</button>
                                 </div>
                             </>
                         )}
                     </div>
                 </div>
                 <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 flex items-center gap-4 shadow-xl">
-                    <div className="p-3 bg-slate-700/50 text-slate-400 rounded-xl border border-slate-600/30">
-                       <Clock className="w-5 h-5" />
-                    </div>
-                    <div>
-                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Criado em</h4>
-                       <p className="text-xs sm:text-sm text-slate-200 font-bold">{item.createdAt ? item.createdAt.toDate().toLocaleDateString('pt-BR') : "---"}</p>
-                    </div>
+                    <div className="p-3 bg-slate-700/50 text-slate-400 rounded-xl border border-slate-600/30"><Clock className="w-5 h-5" /></div>
+                    <div><h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</h4><p className="text-xs sm:text-sm text-slate-200 font-bold">{item.createdAt ? item.createdAt.toDate().toLocaleDateString('pt-BR') : "---"}</p></div>
                 </div>
               </div>
-
               <div className="space-y-4">
                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Ficha Técnica</h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-                    {Object.entries(editData)
-                      .filter(([k]) => !k.toLowerCase().includes('geo') && !k.toLowerCase().includes('link') && !k.includes('__EMPTY'))
-                      .map(([key, value]) => (
+                    {Object.entries(editData).filter(([k]) => isKeyVisible(k)).map(([key, value]) => (
                         <div key={key} className="bg-slate-800/40 p-4 sm:p-6 rounded-xl border border-slate-700/50">
-                          <h5 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                            <Database className="w-3 h-3 text-blue-400" /> {key}
-                          </h5>
+                          <h5 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2"><Database className="w-3 h-3 text-blue-400" /> {key}</h5>
                           {isEditing ? (
-                            <input
-                              type="text"
-                              value={String(value)}
-                              onChange={(e) => setEditData({ ...editData, [key]: e.target.value })}
-                              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none font-bold"
-                            />
+                            <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none font-bold" />
                           ) : (
                             <p className="text-white font-black text-sm sm:text-base break-all uppercase tracking-tight">{String(value)}</p>
                           )}
                         </div>
-                      ))}
+                    ))}
                  </div>
               </div>
-
               {isEditing && (
-                <button 
-                  onClick={handleSave} 
-                  disabled={isSaving} 
-                  className={`fixed bottom-6 left-6 right-6 sm:relative sm:bottom-0 sm:left-0 sm:right-0 py-5 rounded-2xl text-white font-black uppercase tracking-widest text-xs ${config.color} shadow-2xl z-30 flex justify-center items-center gap-3`}
-                >
-                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5"/>}
-                  Salvar Alterações
-                </button>
+                <button onClick={handleSave} disabled={isSaving} className={`fixed bottom-6 left-6 right-6 sm:relative sm:bottom-0 sm:left-0 sm:right-0 py-5 rounded-2xl text-white font-black uppercase tracking-widest text-xs ${config.color} shadow-2xl z-30 flex justify-center items-center gap-3`}>{isSaving ? <Loader2 className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5"/>} Salvar</button>
               )}
           </div>
       </div>
@@ -348,35 +318,22 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
 const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; searchHighlight: string; }> = ({ item, config, onSelect, searchHighlight }) => {
   const data = item.data || {};
   const tagValue = data["Tag"] || item.content.split('|')[0].trim().replace(/^Item:\s*/i, '');
-  const localValue = data["Local"] || "S/ Localização";
+  const localValue = data["Local"] || "S/ Local";
   const hasGeo = !!data["Geolocalização"];
-  
   return (
-    <div 
-      onClick={onSelect} 
-      className="relative flex flex-col bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/60 p-1 shadow hover:shadow-xl transition-all cursor-pointer active:scale-95"
-    >
+    <div onClick={onSelect} className="relative flex flex-col bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/60 p-1 shadow hover:shadow-xl transition-all cursor-pointer active:scale-95">
       <div className="p-4 sm:p-5 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-base sm:text-lg font-black text-white truncate tracking-tighter uppercase">
-            <HighlightedText text={tagValue} highlight={searchHighlight} />
-          </h3>
-          <div className={`flex-shrink-0 w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center text-slate-500`}>
-             <ChevronRight className="w-4 h-4" />
-          </div>
+          <h3 className="text-base sm:text-lg font-black text-white truncate tracking-tighter uppercase"><HighlightedText text={tagValue} highlight={searchHighlight} /></h3>
+          <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center text-slate-500"><ChevronRight className="w-4 h-4" /></div>
         </div>
-
         <div className="flex items-center gap-2 text-slate-400 bg-slate-900/30 px-2.5 py-1.5 rounded-lg border border-white/5">
           <MapPin className={`w-3.5 h-3.5 ${hasGeo ? 'text-emerald-500' : 'text-slate-600'}`} />
           <span className="text-[10px] font-bold truncate tracking-tight">{localValue}</span>
         </div>
-        
         <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-2 border-t border-white/5 uppercase tracking-widest">
-           <div className="flex items-center gap-1.5">
-              <div className={`w-1.5 h-1.5 rounded-full ${hasGeo ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></div>
-              {config.label}
-           </div>
-           <span>{hasGeo ? 'CONECTADO' : 'SEM GPS'}</span>
+           <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${hasGeo ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></div>{config.label}</div>
+           <span>{hasGeo ? 'GPS OK' : 'SEM GPS'}</span>
         </div>
       </div>
     </div>
@@ -391,72 +348,24 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // Estados para o formulário. Usamos um objeto flexível.
   const [formData, setFormData] = useState<any>({ 
     tag: '', local: '', ip: '', 
-    switch1: '', switch2: '', switch3: '', equipamento: ''
+    switch1: '', switch2: '', switch3: '', equipamento: '',
+    customLocal: '', customEquipamento: ''
   });
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, groupKey), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snap) => {
-      setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })) as GroupItem[]);
-    });
+    return onSnapshot(q, (snap) => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })) as GroupItem[]));
   }, [groupKey]);
-
-  const exportKML = () => {
-    const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <name>TagFinder Export - ${config.label}</name>
-    <description>Exportado do sistema TagFinder</description>
-    ${items.filter(item => item.data?.["Geolocalização"]).map(item => {
-      const parts = item.data?.["Geolocalização"]?.split(',');
-      if (!parts || parts.length !== 2) return '';
-      const lat = parts[0].trim();
-      const lng = parts[1].trim();
-      const name = item.data?.["Tag"] || "Sem Tag";
-      const desc = `Local: ${item.data?.["Local"] || "N/A"} | IP: ${item.data?.["IP / Equipamento"] || "N/A"}`;
-      
-      return `
-    <Placemark>
-      <name>${name}</name>
-      <description>${desc}</description>
-      <Point>
-        <coordinates>${lng},${lat},0</coordinates>
-      </Point>
-    </Placemark>`;
-    }).join('')}
-  </Document>
-</kml>`;
-
-    if (!items.some(item => item.data?.["Geolocalização"])) {
-        alert("Nenhum item com localização para exportar.");
-        return;
-    }
-
-    const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `TagFinder_${config.label}.kml`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const handleGetLocation = () => {
     setGettingLocation(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => { 
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); 
-        setGettingLocation(false); 
-      },
-      () => { 
-        setGettingLocation(false); 
-        alert('Falha GPS.'); 
-      },
+      (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGettingLocation(false); },
+      () => { setGettingLocation(false); alert('GPS Falhou'); },
       { enableHighAccuracy: true }
     );
   };
@@ -465,33 +374,21 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     e.preventDefault();
     setLoading(true);
     try {
+      const finalLocal = formData.local === "NOVO" ? formData.customLocal : formData.local;
+      const finalEquip = formData.equipamento === "NOVO" ? formData.customEquipamento : formData.equipamento;
       let data: any = {};
-      
       if (groupKey === 'painel') {
-          // Campos específicos para Painéis
-          data = {
-              "Tag": formData.tag,
-              "Switch1": formData.switch1,
-              "Switch2": formData.switch2,
-              "Switch3": formData.switch3,
-              "Local": formData.local,
-              "Equipamento": formData.equipamento
-          };
+          data = { "Tag": formData.tag, "Switch1": formData.switch1, "Switch2": formData.switch2, "Switch3": formData.switch3, "Local": finalLocal, "Equipamento": finalEquip };
       } else {
-          // Campos padrão para outros grupos
-          data = { "Tag": formData.tag, "Local": formData.local, "IP / Equipamento": formData.ip };
+          data = { "Tag": formData.tag, "Local": finalLocal, "IP / Equipamento": formData.ip };
       }
-
       if (location) {
         data["Geolocalização"] = `${location.lat.toFixed(7)}, ${location.lng.toFixed(7)}`;
         data["Link Maps"] = `https://maps.google.com/?q=${location.lat},${location.lng}`;
       }
-      
-      await addDoc(collection(db, groupKey), { 
-        content: `Item: ${formData.tag}`, data, userId: user.uid, userEmail: user.email, createdAt: serverTimestamp() 
-      });
+      await addDoc(collection(db, groupKey), { content: `Item: ${formData.tag}`, data, userId: user.uid, userEmail: user.email, createdAt: serverTimestamp() });
       setIsModalOpen(false);
-      setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '' });
+      setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '' });
       setLocation(null);
     } catch (e) { alert('Erro'); } finally { setLoading(false); }
   };
@@ -516,23 +413,12 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
             <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tighter">Inventário</h2>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={exportKML} className="w-full sm:w-auto px-4 py-3 bg-blue-500/10 rounded-xl border border-blue-500/20 text-[10px] font-black uppercase text-blue-400 flex items-center justify-center gap-2 hover:bg-blue-500/20 transition-colors">
-            <Globe className="w-4 h-4" /> Exportar KML
-          </button>
-        </div>
       </div>
 
       <div className="flex flex-col gap-4 mb-8">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-          <input 
-            type="text" 
-            placeholder={`Pesquisar em ${config.label}...`} 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-            className="w-full pl-12 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none font-bold placeholder-slate-500 shadow-inner" 
-          />
+          <input type="text" placeholder={`Pesquisar...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none font-bold placeholder-slate-500 shadow-inner" />
         </div>
       </div>
 
@@ -540,98 +426,82 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
         {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} searchHighlight={searchTerm} />)}
       </div>
 
+      {/* Botão de Adição (Visível em Mobile e Desktop) */}
       <button 
         onClick={() => setIsModalOpen(true)} 
-        className={`fixed bottom-6 right-6 w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-2xl z-40 bg-gradient-to-r ${config.gradient} hover:scale-110 active:scale-90 transition-all sm:hidden`}
+        className={`fixed bottom-6 right-6 w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-[0_20px_50px_rgba(8,_112,_184,_0.7)] z-40 bg-gradient-to-r ${config.gradient} hover:scale-110 active:scale-90 transition-all cursor-pointer`}
       >
-        <Plus className="w-7 h-7" />
+        <Plus className="w-8 h-8" />
       </button>
-
-      <div className="hidden sm:block mt-8">
-        <button 
-          onClick={() => setIsModalOpen(true)} 
-          className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest text-white bg-gradient-to-r ${config.gradient} shadow-xl flex justify-center items-center gap-3`}
-        >
-          <Plus className="w-5 h-5" /> Adicionar Novo Ativo
-        </button>
-      </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-md">
           <div className="bg-slate-800 w-full h-[95vh] sm:h-auto sm:max-w-md sm:rounded-[2.5rem] border-t sm:border border-slate-600 overflow-y-auto">
-            <div className={`p-6 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10 shadow-xl`}>
+            <div className={`p-6 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10 shadow-xl`}>
               <h3 className="text-xl font-black tracking-tighter uppercase">Nova Tag</h3>
               <button onClick={() => setIsModalOpen(false)} className="p-2 bg-white/10 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={handleSave} className="p-6 sm:p-8 space-y-6">
+            <form onSubmit={handleSave} className="p-6 space-y-5">
               <button type="button" onClick={handleGetLocation} className={`w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-widest flex flex-col items-center gap-1 transition-all ${location ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 text-blue-400 border border-slate-600'}`}>
-                <div className="flex items-center gap-2">
-                    {gettingLocation ? <Loader2 className="animate-spin w-4 h-4"/> : location ? <CheckCircle className="w-4 h-4"/> : <Navigation className="w-4 h-4"/>}
-                    {location ? "GPS Vinculado" : "Ativar GPS Local"}
-                </div>
-                {location && <span className="text-[8px] opacity-70">Posição Fixada com Sucesso</span>}
+                <div className="flex items-center gap-2">{gettingLocation ? <Loader2 className="animate-spin w-4 h-4"/> : location ? <CheckCircle className="w-4 h-4"/> : <Crosshair className="w-4 h-4"/>} {location ? "GPS ATIVO" : "ATIVAR LOCALIZAÇÃO"}</div>
               </button>
               
-              {/* MINI MAPA DE PRÉ-VISUALIZAÇÃO NO CADASTRO */}
-              {location && (
-                  <div className="space-y-2">
-                     <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Confirmação Geográfica</label>
-                     <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />
-                  </div>
-              )}
+              {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
 
-              <div className="space-y-4">
-                {/* CAMPOS ESPECÍFICOS PARA PAINÉIS OU CAMPOS PADRÃO */}
+              <div className="space-y-3">
                 {groupKey === 'painel' ? (
                     <>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Tag do Painel</label>
-                           <input type="text" placeholder="Ex: PNL-01" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase" />
+                           <input type="text" placeholder="Ex: PNL-01" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase" />
                         </div>
-                        <div className="space-y-1">
-                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Switch 1</label>
-                           <input type="text" placeholder="Ex: SW-CORE-01" value={formData.switch1} onChange={e => setFormData({...formData, switch1: e.target.value})} className="w-full px-5 py-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono" />
-                        </div>
-                        <div className="space-y-1">
-                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Switch 2</label>
-                           <input type="text" placeholder="Ex: SW-DIST-01" value={formData.switch2} onChange={e => setFormData({...formData, switch2: e.target.value})} className="w-full px-5 py-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono" />
-                        </div>
-                        <div className="space-y-1">
-                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Switch 3</label>
-                           <input type="text" placeholder="Ex: SW-ACCESS-01" value={formData.switch3} onChange={e => setFormData({...formData, switch3: e.target.value})} className="w-full px-5 py-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono" />
+                        <div className="grid grid-cols-1 gap-2">
+                           {['switch1', 'switch2', 'switch3'].map((sw, i) => (
+                             <div key={sw} className="space-y-1">
+                                <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Switch {i+1}</label>
+                                <input type="text" placeholder={`Porta/Link`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono" />
+                             </div>
+                           ))}
                         </div>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Local</label>
-                           <input type="text" placeholder="Ex: Sala Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-5 py-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold" />
+                           <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold">
+                              <option value="">Selecione o Local...</option>
+                              {Object.keys(SYSTEM_DATA).map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                              <option value="NOVO">+ ADICIONAR NOVO LOCAL</option>
+                           </select>
+                           {formData.local === "NOVO" && <input type="text" placeholder="Digite o novo local" value={formData.customLocal} onChange={e => setFormData({...formData, customLocal: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold" />}
                         </div>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Equipamento</label>
-                           <input type="text" placeholder="Ex: Fonte/Nobreak" value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-5 py-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold" />
+                           <select disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold disabled:opacity-40">
+                              <option value="">Selecione o Equipamento...</option>
+                              {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                              <option value="NOVO">+ ADICIONAR NOVO EQUIPAMENTO</option>
+                           </select>
+                           {formData.equipamento === "NOVO" && <input type="text" placeholder="Digite o novo equipamento" value={formData.customEquipamento} onChange={e => setFormData({...formData, customEquipamento: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold" />}
                         </div>
                     </>
                 ) : (
                     <>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Tag do Ativo</label>
-                           <input type="text" placeholder="Ex: CTV-1029" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase" />
+                           <input type="text" placeholder="Ex: CTV-01" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase" />
                         </div>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Localização</label>
-                           <input type="text" placeholder="Ex: Rack T.I" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-5 py-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold" />
+                           <input type="text" placeholder="Ex: Sala Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold" />
                         </div>
                         <div className="space-y-1">
                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1">IP / ID</label>
-                           <input type="text" placeholder="Ex: 10.0.0.1" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-5 py-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono" />
+                           <input type="text" placeholder="Ex: 10.0.0.1" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono" />
                         </div>
                     </>
                 )}
               </div>
-
-              <div className="flex flex-col gap-3 pt-4">
-                <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase tracking-widest text-[10px] shadow-2xl flex justify-center items-center gap-3`}>
-                   {loading ? <Loader2 className="animate-spin w-5 h-5"/> : "Confirmar Cadastro"}
-                </button>
-              </div>
+              <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase tracking-widest text-[10px] shadow-2xl flex justify-center items-center gap-3 mt-4`}>
+                 {loading ? <Loader2 className="animate-spin w-5 h-5"/> : "Salvar Registro"}
+              </button>
             </form>
           </div>
         </div>
@@ -656,72 +526,36 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     } catch (e) { console.error(e); } finally { setLoadingMap(false); }
   };
 
-  if (currentView !== 'home') {
-    return (
-      <div className="min-h-screen bg-slate-900 p-4 sm:p-12">
-        <div className="max-w-7xl mx-auto">
-          <GroupPage groupKey={currentView} user={user} onBack={() => setCurrentView('home')} />
-        </div>
-      </div>
-    );
-  }
+  if (currentView !== 'home') return <div className="min-h-screen bg-slate-900 p-4 sm:p-12"><div className="max-w-7xl mx-auto"><GroupPage groupKey={currentView} user={user} onBack={() => setCurrentView('home')} /></div></div>;
 
   return (
     <div className="min-h-screen bg-slate-900 p-5 sm:p-12 text-white relative overflow-hidden flex flex-col">
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full"></div>
-      
       {isMapModalOpen && <GlobalMapModal items={allMapItems} onClose={() => setIsMapModalOpen(false)} />}
-      
       <div className="max-w-6xl mx-auto w-full space-y-12 sm:space-y-20 animate-fadeIn relative z-10 flex-1">
         <header className="flex flex-col gap-8 pb-8 border-b border-slate-800/40">
           <div className="flex justify-between items-start">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[8px] font-black uppercase tracking-widest text-blue-400">
-              <div className="w-1 h-1 rounded-full bg-blue-400 animate-ping"></div>
-              TagFinder Cloud
+              <div className="w-1 h-1 rounded-full bg-blue-400 animate-ping"></div> TagFinder Cloud
             </div>
-            <button onClick={() => signOut(auth)} className="p-3 bg-slate-800 border border-slate-700 rounded-xl text-slate-500 active:scale-90">
-               <LogOut className="w-5 h-5" />
-            </button>
+            <button onClick={() => signOut(auth)} className="p-3 bg-slate-800 border border-slate-700 rounded-xl text-slate-500 active:scale-90"><LogOut className="w-5 h-5" /></button>
           </div>
-          
-          <div>
-            <h1 className="text-4xl sm:text-6xl font-black tracking-tighter leading-tight mb-2">
-              Olá, <span className="text-blue-400">{user.displayName || user.email?.split('@')[0]}</span>
-            </h1>
-            <p className="text-slate-500 text-sm sm:text-lg font-medium tracking-tight">Gestão inteligente de inventário técnico.</p>
-          </div>
-
-          <button 
-            onClick={handleOpenGlobalMap} 
-            disabled={loadingMap} 
-            className="w-full sm:w-auto px-8 py-4 bg-slate-800 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all border border-white/5 shadow-xl"
-          >
-            {loadingMap ? <Loader2 className="w-4 h-4 animate-spin"/> : <Globe className="w-5 h-5 text-blue-400" />} Mapa Global de Ativos
+          <div><h1 className="text-4xl sm:text-6xl font-black tracking-tighter leading-tight mb-2">Olá, <span className="text-blue-400">{user.displayName || user.email?.split('@')[0]}</span></h1><p className="text-slate-500 text-sm font-medium">Gestão inteligente de inventário técnico.</p></div>
+          <button onClick={handleOpenGlobalMap} disabled={loadingMap} className="w-full sm:w-auto px-8 py-4 bg-slate-800 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 border border-white/5 shadow-xl transition-all">
+            {loadingMap ? <Loader2 className="w-4 h-4 animate-spin"/> : <Globe className="w-5 h-5 text-blue-400" />} Mapa Global
           </button>
         </header>
-
         <section className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 pb-12">
           {Object.entries(groupsConfig).map(([key, group]) => (
-             <button 
-                key={key} 
-                onClick={() => setCurrentView(key as GroupType)} 
-                className={`relative overflow-hidden group bg-slate-800/40 backdrop-blur-2xl p-8 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] border border-slate-700/50 flex flex-col items-start transition-all active:scale-95 shadow-xl`}
-             >
-               <div className={`w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2rem] ${group.lightColor} ${group.textColor} flex items-center justify-center mb-6 sm:mb-8 ring-4 ring-white/5`}>
-                 <group.icon className="w-7 h-7 sm:w-10 sm:h-10" />
-               </div>
-               <h2 className="text-2xl sm:text-3xl font-black mb-3 tracking-tighter">{group.label}</h2>
-               <div className={`inline-flex items-center gap-2 font-black text-[8px] uppercase tracking-widest ${group.textColor}`}>
-                  Acessar Módulo <ArrowRight className="w-3 h-3" />
-               </div>
+             <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-800/40 backdrop-blur-2xl p-8 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] border border-slate-700/50 flex flex-col items-start transition-all active:scale-95 shadow-xl">
+               <div className={`w-14 h-14 sm:w-20 sm:h-20 rounded-2xl ${group.lightColor} ${group.textColor} flex items-center justify-center mb-6 ring-4 ring-white/5`}><group.icon className="w-7 h-7 sm:w-10 sm:h-10" /></div>
+               <h2 className="text-2xl font-black mb-3 tracking-tighter">{group.label}</h2>
+               <div className={`inline-flex items-center gap-2 font-black text-[8px] uppercase tracking-widest ${group.textColor}`}>Acessar Módulo <ArrowRight className="w-3 h-3" /></div>
              </button>
           ))}
         </section>
       </div>
-
-      <footer className="py-8 text-center mt-auto">
-         <p className="text-[8px] font-black text-slate-700 uppercase tracking-widest">&copy; 2024 TagFinder Mobile Enterprise</p>
-      </footer>
+      <footer className="py-8 text-center mt-auto"><p className="text-[8px] font-black text-slate-700 uppercase tracking-widest">&copy; 2024 TagFinder Enterprise</p></footer>
     </div>
   );
 };
