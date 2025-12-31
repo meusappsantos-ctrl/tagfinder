@@ -137,10 +137,10 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const userMarkerRef = useRef<any>(null);
+  const layerGroupRef = useRef<any>(null);
   const [userPos, setUserPos] = useState<[number, number] | null>(null);
 
   useEffect(() => {
-    // Monitoramento constante da localização
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const newPos: [number, number] = [pos.coords.latitude, pos.coords.longitude];
@@ -156,49 +156,58 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
   }, []);
 
   useEffect(() => {
-    if (!mapRef.current || mapInstance.current) return;
-    if (typeof L === 'undefined') return;
+    if (!mapRef.current || mapInstance.current || typeof L === 'undefined') return;
     try {
       const map = L.map(mapRef.current).setView([-15.7801, -47.9292], 4);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-      const bounds = L.latLngBounds([]);
-      let hasBounds = false;
+      layerGroupRef.current = L.layerGroup().addTo(map);
+      mapInstance.current = map;
+    } catch (e) { console.error(e); }
+  }, []);
 
-      // Marcador inicial do Usuário
-      if (userPos) {
+  useEffect(() => {
+    if (!mapInstance.current || !layerGroupRef.current) return;
+    layerGroupRef.current.clearLayers();
+    const bounds = L.latLngBounds([]);
+    let hasBounds = false;
+
+    if (userPos && !userMarkerRef.current) {
         userMarkerRef.current = L.circleMarker(userPos, {
-          radius: 12, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 0.8, className: 'user-marker-pulse'
-        }).addTo(map);
+            radius: 12, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 0.8, className: 'user-marker-pulse'
+        }).addTo(mapInstance.current);
         userMarkerRef.current.bindTooltip("Você está aqui", { permanent: false, direction: 'top' });
         bounds.extend(userPos);
         hasBounds = true;
-      }
+    } else if (userPos) {
+        userMarkerRef.current.setLatLng(userPos);
+        bounds.extend(userPos);
+        hasBounds = true;
+    }
 
-      items.forEach(item => {
-        const geo = item.data?.["Geolocalização"];
-        if (geo) {
-          const parts = geo.split(',').map((p: string) => parseFloat(p.trim()));
-          if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-            const [lat, lng] = parts;
-            let color = '#60a5fa';
-            if (item.groupType === 'telecom') color = '#818cf8';
-            if (item.groupType === 'painel') color = '#fb923c';
-            if (item.groupType === 'embarcados') color = '#34d399';
-            const marker = L.circleMarker([lat, lng], {
-              radius: 10, fillColor: color, color: '#ffffff', weight: 2, opacity: 1, fillOpacity: 1
-            }).addTo(map);
-            const tagName = item.data?.["Tag"] || "Equipamento";
-            marker.bindTooltip(tagName, { permanent: true, direction: 'top', className: 'tag-label', offset: [0, -5] }).openTooltip();
-            marker.bindPopup(`<div class="p-1"><p class="text-xs font-black text-slate-900 uppercase mb-2">${tagName}</p><a href="https://earth.google.com/web/search/${lat},${lng}" target="_blank" class="inline-block bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-bold no-underline">Ver no Earth</a></div>`);
-            bounds.extend([lat, lng]);
-            hasBounds = true;
-          }
+    items.forEach(item => {
+      const geo = item.data?.["Geolocalização"];
+      if (geo) {
+        const parts = geo.split(',').map((p: string) => parseFloat(p.trim()));
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          const [lat, lng] = parts;
+          let color = '#60a5fa';
+          if (item.groupType === 'telecom') color = '#818cf8';
+          if (item.groupType === 'painel') color = '#fb923c';
+          if (item.groupType === 'embarcados') color = '#34d399';
+          const marker = L.circleMarker([lat, lng], {
+            radius: 10, fillColor: color, color: '#ffffff', weight: 2, opacity: 1, fillOpacity: 1
+          });
+          const tagName = item.data?.["Tag"] || "Equipamento";
+          marker.bindTooltip(tagName, { permanent: true, direction: 'top', className: 'tag-label', offset: [0, -5] });
+          marker.bindPopup(`<div class="p-1"><p class="text-xs font-black text-slate-900 uppercase mb-2">${tagName}</p><a href="https://earth.google.com/web/search/${lat},${lng}" target="_blank" class="inline-block bg-blue-600 text-white px-3 py-1.5 rounded text-[10px] font-bold no-underline">Ver no Earth</a></div>`);
+          layerGroupRef.current.addLayer(marker);
+          bounds.extend([lat, lng]);
+          hasBounds = true;
         }
-      });
-      if (hasBounds) map.fitBounds(bounds, { padding: [50, 50] });
-      mapInstance.current = map;
-    } catch (e) { console.error(e); }
-    return () => { if (mapInstance.current) mapInstance.current.remove(); };
+      }
+    });
+
+    if (hasBounds) mapInstance.current.fitBounds(bounds, { padding: [50, 50] });
   }, [items, userPos]);
 
   const centerOnUser = () => {
@@ -245,7 +254,6 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
   );
 };
 
-// Funções de filtragem globais para evitar redundância
 const isKeyVisible = (k: string) => {
   if (!k) return false;
   const key = k.toLowerCase();
@@ -260,7 +268,6 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Record<string, any>>(() => {
-    // Ao abrir detalhes, limpamos campos EMPTY do estado local de edição
     const filtered: Record<string, any> = {};
     Object.entries(item.data || {}).forEach(([k, v]) => {
       if (isKeyVisible(k)) filtered[k] = v;
@@ -316,7 +323,6 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
       <div className="bg-slate-900 min-h-screen sm:min-h-[500px] sm:rounded-[2.5rem] border-x sm:border border-slate-700 shadow-2xl overflow-hidden flex flex-col animate-slideUp">
           <div className={`p-5 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-20`}>
               <div className="flex items-center gap-4 sm:gap-6">
-                  {/* Fixed: Replaced non-existent 'onBack' with 'onClose' prop */}
                   <button onClick={onClose} className="p-2 sm:p-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all"><ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" /></button>
                   <h2 className="text-lg sm:text-2xl font-black tracking-tighter uppercase truncate max-w-[180px] sm:max-w-none">{isEditing ? "Editando" : (editData["Tag"] || "Detalhes")}</h2>
               </div>
@@ -543,7 +549,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
         {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} onDelete={quickDelete} onEdit={quickEdit} searchHighlight={searchTerm} />)}
       </div>
 
-      {/* Botão flutuante para criação de novos itens */}
       <button onClick={() => setIsModalOpen(true)} className={`fixed bottom-6 right-6 w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-[0_20px_50px_rgba(8,_112,_184,_0.7)] z-40 bg-gradient-to-r ${config.gradient} hover:scale-110 active:scale-90 transition-all cursor-pointer`}><Plus className="w-8 h-8" /></button>
 
       {isModalOpen && (
@@ -633,7 +638,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     try {
       const colls = ['ctv', 'telecom', 'painel', 'embarcados'];
       const results = await Promise.all(colls.map(c => getDocs(collection(db, c))));
-      setAllMapItems(results.flatMap((snap, idx) => snap.docs.map(d => ({ id: d.id, ...d.data(), groupType: colls[idx] as GroupType }))));
+      const items = results.flatMap((snap, idx) => snap.docs.map(d => ({ id: d.id, ...d.data(), groupType: colls[idx] as GroupType })));
+      setAllMapItems(items);
       setIsMapModalOpen(true);
     } catch (e) { console.error(e); } finally { setLoadingMap(false); }
   };
@@ -643,31 +649,67 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   return (
     <div className="min-h-screen bg-slate-900 p-5 sm:p-12 text-white relative overflow-hidden flex flex-col">
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full"></div>
+      
       {isMapModalOpen && <GlobalMapModal items={allMapItems} onClose={() => setIsMapModalOpen(false)} />}
-      <div className="max-w-6xl mx-auto w-full space-y-12 sm:space-y-20 animate-fadeIn relative z-10 flex-1">
-        <header className="flex flex-col gap-8 pb-8 border-b border-slate-800/40">
-          <div className="flex justify-between items-start">
+      
+      <div className="max-w-6xl mx-auto w-full space-y-10 animate-fadeIn relative z-10 flex-1">
+        <header className="flex flex-col gap-6">
+          <div className="flex justify-between items-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[8px] font-black uppercase tracking-widest text-blue-400">
               <div className="w-1 h-1 rounded-full bg-blue-400 animate-ping"></div> TagFinder Cloud
             </div>
             <button onClick={() => signOut(auth)} className="p-3 bg-slate-800 border border-slate-700 rounded-xl text-slate-500 active:scale-90 transition-all hover:bg-slate-700/50"><LogOut className="w-5 h-5" /></button>
           </div>
-          <div><h1 className="text-4xl sm:text-6xl font-black tracking-tighter leading-tight mb-2">Olá, <span className="text-blue-400">{user.displayName || user.email?.split('@')[0]}</span></h1><p className="text-slate-500 text-sm font-medium">Gestão integrada e georreferenciada de ativos técnicos.</p></div>
-          <button onClick={handleOpenGlobalMap} disabled={loadingMap} className="w-full sm:w-auto px-8 py-4 bg-slate-800 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 border border-white/5 shadow-xl transition-all hover:bg-slate-700">
-            {loadingMap ? <Loader2 className="w-4 h-4 animate-spin"/> : <Globe className="w-5 h-5 text-blue-400" />} Mapa Global Georreferenciado
+          
+          <div>
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tighter leading-tight">
+              Olá, <span className="text-blue-400">{user.displayName || user.email?.split('@')[0]}</span>
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm font-medium">Gestão integrada e monitoramento em tempo real.</p>
+          </div>
+
+          {/* Botão do Mapa Global agora na parte superior como destaque */}
+          <button 
+            onClick={handleOpenGlobalMap} 
+            disabled={loadingMap} 
+            className="group relative overflow-hidden w-full p-8 sm:p-10 rounded-[2.5rem] bg-slate-800/60 border border-slate-700 shadow-2xl transition-all active:scale-[0.98] hover:bg-slate-800 hover:border-blue-500/30 text-left"
+          >
+            <div className="absolute top-0 right-0 p-32 bg-blue-600/10 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity group-hover:bg-blue-600/20"></div>
+            <div className="flex items-center justify-between gap-4 relative z-10">
+              <div className="flex items-center gap-6">
+                <div className="p-4 sm:p-6 bg-blue-500/20 text-blue-400 rounded-3xl ring-4 ring-white/5 group-hover:scale-110 transition-transform">
+                  {loadingMap ? <Loader2 className="w-8 h-8 animate-spin"/> : <Globe className="w-8 h-8" />}
+                </div>
+                <div>
+                   <h3 className="text-xl sm:text-2xl font-black text-white tracking-tighter">Explorar Mapa Global</h3>
+                   <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Localização em Tempo Real • Ativos Georreferenciados</p>
+                </div>
+              </div>
+              <div className="hidden sm:flex w-12 h-12 rounded-full bg-slate-700 items-center justify-center group-hover:bg-blue-600 transition-colors">
+                 <ArrowRight className="w-6 h-6 text-white" />
+              </div>
+            </div>
           </button>
         </header>
-        <section className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 pb-12">
+
+        <section className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 pb-12">
           {Object.entries(groupsConfig).map(([key, group]) => (
-             <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-800/40 backdrop-blur-2xl p-8 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] border border-slate-700/50 flex flex-col items-start transition-all active:scale-95 shadow-xl hover:bg-slate-700/60">
-               <div className={`w-14 h-14 sm:w-20 sm:h-20 rounded-2xl ${group.lightColor} ${group.textColor} flex items-center justify-center mb-6 ring-4 ring-white/5 group-hover:scale-110 transition-transform`}><group.icon className="w-7 h-7 sm:w-10 sm:h-10" /></div>
-               <h2 className="text-2xl font-black mb-3 tracking-tighter">{group.label}</h2>
+             <button 
+              key={key} 
+              onClick={() => setCurrentView(key as GroupType)} 
+              className="relative overflow-hidden group bg-slate-800/40 backdrop-blur-2xl p-6 sm:p-8 rounded-[2rem] border border-slate-700/50 flex flex-col items-start transition-all active:scale-95 shadow-xl hover:bg-slate-700/60"
+             >
+               <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-2xl ${group.lightColor} ${group.textColor} flex items-center justify-center mb-5 ring-4 ring-white/5 group-hover:scale-110 transition-transform`}><group.icon className="w-6 h-6 sm:w-8 sm:h-8" /></div>
+               <h2 className="text-xl font-black mb-2 tracking-tighter">{group.label}</h2>
                <div className={`inline-flex items-center gap-2 font-black text-[8px] uppercase tracking-widest ${group.textColor}`}>Acessar Inventário <ArrowRight className="w-3 h-3" /></div>
              </button>
           ))}
         </section>
       </div>
-      <footer className="py-8 text-center mt-auto"><p className="text-[8px] font-black text-slate-700 uppercase tracking-widest">&copy; 2024 TagFinder Enterprise - Monitoramento & Gestão</p></footer>
+      
+      <footer className="py-8 text-center mt-auto">
+        <p className="text-[8px] font-black text-slate-700 uppercase tracking-widest">&copy; 2024 TagFinder Enterprise • Monitoramento & Gestão de Ativos</p>
+      </footer>
     </div>
   );
 };
