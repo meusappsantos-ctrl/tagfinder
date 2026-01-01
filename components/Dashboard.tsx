@@ -15,7 +15,7 @@ import {
   getDocs 
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown, Layers, Locate } from 'lucide-react';
+import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown, Layers, Locate, Activity } from 'lucide-react';
 
 declare const L: any;
 
@@ -428,9 +428,34 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
           <span className="text-[10px] font-bold truncate tracking-tight">{localValue}</span>
         </div>
         
-        {isPainel && data["Equipamento"] && (
-            <div className="px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded text-[9px] text-orange-400 font-black uppercase tracking-tighter truncate">
-                {data["Equipamento"]}
+        {isPainel && (
+            <div className="space-y-2">
+                {data["Equipamento"] && (
+                    <div className="px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded text-[9px] text-orange-400 font-black uppercase tracking-tighter truncate">
+                        {data["Equipamento"]}
+                    </div>
+                )}
+                {/* Visualização de Switches na lista de Painéis */}
+                <div className="flex flex-wrap gap-1">
+                    {data["Switch1"] && (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
+                            <Activity className="w-2 h-2 text-blue-400" />
+                            <span>SW1: {data["Switch1"]}</span>
+                        </div>
+                    )}
+                    {data["Switch2"] && (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
+                            <Activity className="w-2 h-2 text-blue-400" />
+                            <span>SW2: {data["Switch2"]}</span>
+                        </div>
+                    )}
+                    {data["Switch3"] && (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
+                            <Activity className="w-2 h-2 text-blue-400" />
+                            <span>SW3: {data["Switch3"]}</span>
+                        </div>
+                    )}
+                </div>
             </div>
         )}
 
@@ -513,7 +538,10 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     const tag = (i.data?.["Tag"] || "").toLowerCase();
     const local = (i.data?.["Local"] || "").toLowerCase();
     const equip = (i.data?.["Equipamento"] || "").toLowerCase();
-    return !s || tag.includes(s) || local.includes(s) || equip.includes(s);
+    const sw1 = (i.data?.["Switch1"] || "").toLowerCase();
+    const sw2 = (i.data?.["Switch2"] || "").toLowerCase();
+    const sw3 = (i.data?.["Switch3"] || "").toLowerCase();
+    return !s || tag.includes(s) || local.includes(s) || equip.includes(s) || sw1.includes(s) || sw2.includes(s) || sw3.includes(s);
   });
 
   if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => setSelectedItem(null)} onDelete={(id) => deleteDoc(doc(db, groupKey, id)).then(() => setSelectedItem(null))} />;
@@ -668,7 +696,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <p className="text-slate-500 text-xs sm:text-sm font-medium">Gestão integrada e monitoramento em tempo real.</p>
           </div>
 
-          {/* Botão do Mapa Global agora na parte superior como destaque */}
           <button 
             onClick={handleOpenGlobalMap} 
             disabled={loadingMap} 
