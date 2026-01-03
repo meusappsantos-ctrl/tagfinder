@@ -138,7 +138,6 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
       layerGroupRef.current = L.layerGroup().addTo(map);
       mapInstance.current = map;
       
-      // Essencial para carregar tiles em modais
       setTimeout(() => {
         map.invalidateSize();
         if (initialFitDone.current) return;
@@ -147,7 +146,9 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
         items.forEach(item => {
           const geo = item.data?.["Geolocalização"];
           if (geo) {
-            const [la, ln] = geo.split(',').map((p:string) => parseFloat(p.trim()));
+            const parts = geo.split(',');
+            const la = parseFloat(parts[0]);
+            const ln = parseFloat(parts[1]);
             if(!isNaN(la)) { bounds.extend([la, ln]); hasBounds = true; }
           }
         });
@@ -174,7 +175,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
 
     items.forEach(item => {
       const geo = item.data?.["Geolocalização"];
-      if (geo) {
+      if (geo && geo.trim() !== "") {
         const parts = geo.split(',').map((p: string) => parseFloat(p.trim()));
         if (parts.length === 2 && !isNaN(parts[0])) {
           const [lat, lng] = parts;
@@ -255,7 +256,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Record<string, any>>(item.data || {});
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(() => {
-     if (item.data?.["Geolocalização"]) {
+     if (item.data?.["Geolocalização"] && item.data["Geolocalização"].trim() !== "") {
          const parts = item.data["Geolocalização"].split(',');
          if (parts.length === 2) return { lat: parseFloat(parts[0]), lng: parseFloat(parts[1]) };
      }
@@ -268,11 +269,20 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
       try {
           const docRef = doc(db, groupKey, item.id);
           const finalData = { ...editData };
+          
           if (location) {
               finalData["Geolocalização"] = `${location.lat.toFixed(7)}, ${location.lng.toFixed(7)}`;
               finalData["Link Maps"] = `https://maps.google.com/?q=${location.lat},${location.lng}`;
+          } else {
+              // Se location for null, remove os campos explicitamente para o Firestore refletir a exclusão
+              finalData["Geolocalização"] = "";
+              finalData["Link Maps"] = "";
           }
-          await updateDoc(docRef, { data: finalData, content: finalData["Tag"] ? `Item: ${finalData["Tag"]}` : item.content });
+          
+          await updateDoc(docRef, { 
+            data: finalData, 
+            content: finalData["Tag"] ? `Item: ${finalData["Tag"]}` : item.content 
+          });
           setIsEditing(false);
       } catch (e) { alert("Erro ao salvar."); } finally { setIsSaving(false); }
   };
@@ -295,13 +305,22 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                       <div className={`p-4 rounded-2xl border-2 ${location ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}`}><MapPin className="w-6 h-6" /></div>
                       <div className="flex-1">
                          <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Coordenadas Atuais</h4>
-                         <p className="text-sm text-slate-200 font-mono font-black">{location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : "Pendente"}</p>
+                         <p className="text-sm text-slate-200 font-mono font-black">{location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : "Não Vinculado"}</p>
                       </div>
+                      {isEditing && location && (
+                        <button 
+                          onClick={() => { if(confirm("Remover marcação do mapa?")) setLocation(null); }} 
+                          className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 border border-red-500/20"
+                          title="Excluir marcação"
+                        >
+                          <MapPinOff className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
                     {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={editData["Tag"]} />}
                     <div className="grid grid-cols-1 gap-2">
                         {isEditing ? (
-                            <button onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat:p.coords.latitude, lng:p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy:true}) }} className="w-full py-4 bg-blue-600 text-white text-[10px] font-black uppercase rounded-2xl flex items-center justify-center gap-2 transition-all">{gettingLocation ? <Loader2 className="animate-spin w-4 h-4"/> : <Crosshair className="w-4 h-4"/>} Atualizar GPS</button>
+                            <button onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat:p.coords.latitude, lng:p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy:true}) }} className="w-full py-4 bg-blue-600 text-white text-[10px] font-black uppercase rounded-2xl flex items-center justify-center gap-2 transition-all">{gettingLocation ? <Loader2 className="animate-spin w-4 h-4"/> : <Crosshair className="w-4 h-4"/>} Capturar GPS Atual</button>
                         ) : location && (
                             <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`, '_blank')} className="w-full py-4 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-2xl flex items-center justify-center gap-2"><Navigation2 className="w-4 h-4" /> Traçar Rota</button>
                         )}
@@ -329,7 +348,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
               </div>
               {isEditing && (
                 <div className="grid grid-cols-2 gap-5 pt-6">
-                    <button onClick={() => confirm("Excluir registro?") && onDelete(item.id)} className="py-6 rounded-3xl bg-red-600/10 text-red-500 font-black uppercase text-[11px] border border-red-500/20 hover:bg-red-600/20">Excluir Permanente</button>
+                    <button onClick={() => confirm("Excluir registro permanentemente?") && onDelete(item.id)} className="py-6 rounded-3xl bg-red-600/10 text-red-500 font-black uppercase text-[11px] border border-red-500/20 hover:bg-red-600/20">Excluir Permanente</button>
                     <button onClick={handleSave} disabled={isSaving} className={`py-6 rounded-3xl text-white font-black uppercase text-[11px] ${config.color} shadow-2xl flex justify-center items-center gap-3 active:scale-95 transition-all`}>
                         {isSaving ? <Loader2 className="animate-spin w-6 h-6"/> : <Save className="w-6 h-6"/>} Salvar e Finalizar
                     </button>
@@ -344,7 +363,7 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
   const data = item.data || {};
   const tagValue = data["Tag"] || item.content.split('|')[0].trim().replace(/^Item:\s*/i, '');
   const localValue = data["Local"] || "Não definido";
-  const hasGeo = !!data["Geolocalização"];
+  const hasGeo = !!data["Geolocalização"] && data["Geolocalização"].trim() !== "";
 
   return (
     <div onClick={onSelect} className="relative flex flex-col bg-slate-800/40 backdrop-blur-xl rounded-[2rem] border border-slate-700/60 p-1 shadow-2xl hover:shadow-blue-500/10 transition-all cursor-pointer active:scale-95 group overflow-hidden border-b-4 border-b-transparent hover:border-b-blue-500">
@@ -369,7 +388,8 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
   );
 };
 
-const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void; initialSelectedItem?: GroupItem | null }> = ({ groupKey, user, onBack, initialSelectedItem }) => {
+/* Corrected commas instead of semicolons in props destructuring and state hooks */
+const GroupPage: React.FC<{ groupKey: GroupType, user: User, onBack: () => void, initialSelectedItem?: GroupItem | null }> = ({ groupKey, user, onBack, initialSelectedItem }) => {
   const config = groupsConfig[groupKey];
   const [items, setItems] = useState<GroupItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<GroupItem | null>(initialSelectedItem || null);
@@ -477,6 +497,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
   );
 };
 
+/* Corrected commas instead of semicolons in state hooks */
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [currentView, setCurrentView] = useState<ViewState>('home');
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
