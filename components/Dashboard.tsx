@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, signOut } from 'firebase/auth';
 import { 
@@ -151,10 +150,14 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
   const mapInstance = useRef<any>(null);
   const userMarkerRef = useRef<any>(null);
   const accuracyCircleRef = useRef<any>(null);
-  const layerGroupRef = useRef<any>(null);
+  const assetsLayerRef = useRef<any>(null); // Layer exclusiva para os marcadores de ativos
+  const userLayerRef = useRef<any>(null);   // Layer exclusiva para o marcador de usuário
+  const initialFitDone = useRef(false);     // Trava para o ajuste de zoom inicial
+  
   const [userPos, setUserPos] = useState<[number, number] | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
 
+  // GPS Watcher
   useEffect(() => {
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
@@ -167,8 +170,10 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
+  // Map Initialization
   useEffect(() => {
-    if (!mapRef.current || mapInstance.current || typeof L === 'undefined') return;
+    if (!mapRef.current || typeof L === 'undefined') return;
+    
     try {
       const map = L.map(mapRef.current, { 
         zoomControl: false, 
@@ -181,36 +186,66 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
         attribution: SATELLITE_ATTRIBUTION,
         maxZoom: 21, 
         maxNativeZoom: 19,
-        updateWhenIdle: true,
-        keepBuffer: 8
+        updateWhenIdle: true
       }).addTo(map);
 
-      layerGroupRef.current = L.layerGroup().addTo(map);
+      // Criar as camadas
+      assetsLayerRef.current = L.layerGroup().addTo(map);
+      userLayerRef.current = L.layerGroup().addTo(map);
+      
       mapInstance.current = map;
       
       setTimeout(() => {
         if(mapInstance.current) mapInstance.current.invalidateSize();
       }, 300);
     } catch (e) { console.error("Map init error:", e); }
+
+    return () => {
+        if (mapInstance.current) {
+            mapInstance.current.remove();
+            mapInstance.current = null;
+        }
+    };
   }, []);
 
+  // Effect: User Marker Updates (Moves marker without moving camera)
   useEffect(() => {
-    if (!mapInstance.current || !layerGroupRef.current) return;
-    
-    if (userPos) {
-      if (!userMarkerRef.current) {
-        accuracyCircleRef.current = L.circle(userPos, { radius: accuracy || 0, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15, weight: 1 }).addTo(mapInstance.current);
-        userMarkerRef.current = L.circleMarker(userPos, { radius: 8, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 1, className: 'user-marker-pulse' }).addTo(mapInstance.current);
-        userMarkerRef.current.bindTooltip("Você está aqui", { direction: 'top' });
-      } else {
-        userMarkerRef.current.setLatLng(userPos);
-        accuracyCircleRef.current.setLatLng(userPos).setRadius(accuracy || 0);
-      }
-    }
+    if (!mapInstance.current || !userLayerRef.current || !userPos) return;
 
-    layerGroupRef.current.clearLayers();
+    if (!userMarkerRef.current) {
+      accuracyCircleRef.current = L.circle(userPos, { 
+        radius: accuracy || 0, 
+        color: '#3b82f6', 
+        fillColor: '#3b82f6', 
+        fillOpacity: 0.15, 
+        weight: 1 
+      }).addTo(userLayerRef.current);
+      
+      userMarkerRef.current = L.circleMarker(userPos, { 
+        radius: 10, 
+        fillColor: '#3b82f6', 
+        color: '#ffffff', 
+        weight: 3, 
+        opacity: 1, 
+        fillOpacity: 1, 
+        className: 'user-marker-pulse' 
+      }).addTo(userLayerRef.current);
+      
+      userMarkerRef.current.bindTooltip("Você", { direction: 'top' });
+    } else {
+      userMarkerRef.current.setLatLng(userPos);
+      accuracyCircleRef.current.setLatLng(userPos).setRadius(accuracy || 0);
+    }
+  }, [userPos, accuracy]);
+
+  // Effect: Assets Layer Updates & Initial Framing
+  useEffect(() => {
+    if (!mapInstance.current || !assetsLayerRef.current || items.length === 0) return;
+
+    // Atualizar marcadores na camada de ativos
+    assetsLayerRef.current.clearLayers();
     const bounds = L.latLngBounds([]);
-    let hasBounds = false;
+    let hasGeoItems = false;
 
     items.forEach(item => {
       const geo = item.data?.["Geolocalização"];
@@ -223,39 +258,56 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
           if (item.groupType === 'painel') color = '#f97316';
           if (item.groupType === 'embarcados') color = '#10b981';
           
-          const marker = L.circleMarker([lat, lng], { radius: 10, fillColor: color, color: '#ffffff', weight: 2, opacity: 1, fillOpacity: 1 });
-          const tagClean = cleanTagName(item.data?.["Tag"] || "Item");
-          marker.bindTooltip(tagClean, { permanent: true, direction: 'top', className: 'tag-label', offset: [0, -8] });
+          const marker = L.circleMarker([lat, lng], { 
+            radius: 10, 
+            fillColor: color, 
+            color: '#ffffff', 
+            weight: 2, 
+            opacity: 1, 
+            fillOpacity: 1 
+          });
           
-          const popup = L.popup().setContent(`
-            <div class="p-3 flex flex-col gap-3 min-w-[160px]">
-              <div class="border-b border-slate-200 pb-2">
-                <p class="text-[11px] font-black uppercase text-slate-800 tracking-tight">${tagClean}</p>
-                <p class="text-[8px] font-bold text-slate-500 uppercase">${item.groupType || 'Ativo'}</p>
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <button onclick="window.handleSelectFromMap('${item.id}', '${item.groupType}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-lg text-[9px] font-black uppercase shadow-md transition-all active:scale-95">Ver no Painel</button>
-                <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="w-full bg-slate-800 text-white px-3 py-2.5 rounded-lg text-[9px] font-black text-center no-underline uppercase shadow-sm">Como Chegar</a>
-              </div>
+          const tagClean = cleanTagName(item.data?.["Tag"] || "Item");
+          marker.bindTooltip(tagClean, { 
+            permanent: true, 
+            direction: 'top', 
+            className: 'tag-label', 
+            offset: [0, -8] 
+          });
+          
+          const popupContent = document.createElement('div');
+          popupContent.className = "p-3 flex flex-col gap-3 min-w-[160px]";
+          popupContent.innerHTML = `
+            <div class="border-b border-slate-200 pb-2">
+              <p class="text-[11px] font-black uppercase text-slate-800 tracking-tight">${tagClean}</p>
+              <p class="text-[8px] font-bold text-slate-500 uppercase">${item.groupType || 'Ativo'}</p>
             </div>
-          `);
-          marker.bindPopup(popup);
-          layerGroupRef.current.addLayer(marker);
+            <div class="flex flex-col gap-1.5">
+              <button id="btn-select-${item.id}" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-lg text-[9px] font-black uppercase shadow-md transition-all active:scale-95">Ver Detalhes</button>
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="w-full bg-slate-800 text-white px-3 py-2.5 rounded-lg text-[9px] font-black text-center no-underline uppercase shadow-sm">Como Chegar</a>
+            </div>
+          `;
+
+          marker.bindPopup(popupContent);
+          marker.on('popupopen', () => {
+            const btn = document.getElementById(`btn-select-${item.id}`);
+            if (btn) btn.onclick = () => { onSelectItem(item); onClose(); };
+          });
+
+          assetsLayerRef.current.addLayer(marker);
           bounds.extend([lat, lng]);
-          hasBounds = true;
+          hasGeoItems = true;
         }
       }
     });
 
-    if (hasBounds && items.length > 0) {
-      mapInstance.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+    // AJUSTE DE CÂMERA (Somente uma vez após o mapa ter itens)
+    if (hasGeoItems && !initialFitDone.current) {
+        if (userPos) bounds.extend(userPos);
+        mapInstance.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+        initialFitDone.current = true;
     }
-    
-    (window as any).handleSelectFromMap = (id: string, group: string) => {
-        onSelectItem(items.find(i => i.id === id)!);
-        onClose();
-    };
-  }, [items, userPos, accuracy]);
+  }, [items]); // Not depending on userPos to prevent yo-yo effect
 
   const handleZoomIn = () => mapInstance.current?.zoomIn();
   const handleZoomOut = () => mapInstance.current?.zoomOut();
@@ -342,7 +394,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
       <div className="bg-slate-900 min-h-screen sm:min-h-[600px] sm:rounded-[2.5rem] border-x sm:border border-slate-700 shadow-2xl overflow-hidden flex flex-col animate-slideUp">
           <div className={`p-5 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-30 shadow-xl`}>
               <div className="flex items-center gap-4">
-                  <button onClick={onClose} className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-all"><ArrowLeft className="w-5 h-5" /></button>
+                  <button onClick={onClose} className="p-2 bg-white/20 rounded-xl hover:bg-white/30 rounded-xl transition-all"><ArrowLeft className="w-5 h-5" /></button>
                   <h2 className="text-xl font-black uppercase truncate tracking-tight">{isEditing ? "Edição de Ativo" : (cleanTagName(editData["Tag"]) || "Detalhes do Ativo")}</h2>
               </div>
               <div className="flex gap-2">
@@ -742,12 +794,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </div>
         </header>
 
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 pb-24">
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-10 pb-24">
             {Object.entries(groupsConfig).map(([key, group]) => (
-            <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-900/60 p-14 rounded-[4rem] border border-slate-800/80 flex flex-col items-start transition-all hover:bg-slate-800 hover:border-white/10 active:scale-95 shadow-[0_30px_60px_rgba(0,0,0,0.4)]">
-                <div className={`w-24 h-24 rounded-[2rem] ${group.lightColor} ${group.textColor} flex items-center justify-center mb-12 border border-white/5 transition-all group-hover:scale-110 shadow-2xl ring-8 ring-white/5`}><group.icon size={44} /></div>
-                <h2 className="text-3xl font-black tracking-tighter uppercase leading-none mb-5">{group.label}</h2>
-                <div className={`inline-flex items-center gap-4 text-[11px] font-black uppercase tracking-[0.3em] ${group.textColor} opacity-60 group-hover:opacity-100 transition-opacity`}>EXPLORAR <ArrowRight size={18} /></div>
+            <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-900/60 p-6 sm:p-14 rounded-[2rem] sm:rounded-[4rem] border border-slate-800/80 flex flex-col items-start transition-all hover:bg-slate-800 hover:border-white/10 active:scale-95 shadow-xl sm:shadow-[0_30px_60px_rgba(0,0,0,0.4)]">
+                <div className={`w-12 h-12 sm:w-24 sm:h-24 rounded-xl sm:rounded-[2rem] ${group.lightColor} ${group.textColor} flex items-center justify-center mb-4 sm:mb-12 border border-white/5 transition-all group-hover:scale-110 shadow-2xl ring-4 sm:ring-8 ring-white/5`}>
+                  <group.icon className="w-6 h-6 sm:w-11 sm:h-11" />
+                </div>
+                <h2 className="text-sm sm:text-3xl font-black tracking-tighter uppercase leading-none mb-2 sm:mb-5">{group.label}</h2>
+                <div className={`inline-flex items-center gap-2 sm:gap-4 text-[8px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] ${group.textColor} opacity-60 group-hover:opacity-100 transition-opacity`}>
+                  EXPLORAR <ArrowRight className="w-3 h-3 sm:w-5 sm:h-5" />
+                </div>
             </button>
             ))}
         </section>
