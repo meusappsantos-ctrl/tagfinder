@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, signOut } from 'firebase/auth';
 import { 
@@ -15,7 +14,7 @@ import {
   getDocs 
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Crosshair, Server, CheckCircle, Database, Clock, Navigation2, Locate, Activity, MapPinOff, FileDown } from 'lucide-react';
+import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Crosshair, Server, CheckCircle, Database, Clock, Navigation2, Locate, Activity, MapPinOff, FileDown, ZoomIn, ZoomOut } from 'lucide-react';
 
 declare const L: any;
 
@@ -36,7 +35,6 @@ interface GroupItem {
 type GroupType = 'ctv' | 'telecom' | 'embarcados' | 'painel';
 type ViewState = 'home' | GroupType;
 
-// Definição de Camadas Profissionais
 const GOOGLE_HYBRID_URL = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
 const SATELLITE_ATTRIBUTION = '&copy; Google Maps';
 
@@ -82,7 +80,13 @@ const HighlightedText: React.FC<{ text: string; highlight: string; className?: s
   );
 };
 
-const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ lat, lng, tag }) => {
+const isKeyVisible = (k: string) => {
+  if (!k) return false;
+  const key = k.toUpperCase();
+  return !key.includes('__EMPTY') && !key.includes('GEOLOCALIZAÇÃO') && !key.includes('LINK MAPS') && k.trim() !== "";
+};
+
+const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string, height?: string, className?: string }> = ({ lat, lng, tag, height = "h-32 sm:h-64", className = "" }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
 
@@ -90,8 +94,8 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
     if (!mapRef.current || typeof L === 'undefined') return;
     
     if (mapInstance.current) {
-        mapInstance.current.setView([lat, lng], 18);
-        return;
+        mapInstance.current.remove();
+        mapInstance.current = null;
     }
 
     try {
@@ -100,7 +104,8 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
         attributionControl: false,
         dragging: false,
         scrollWheelZoom: false,
-        touchZoom: false
+        touchZoom: false,
+        doubleClickZoom: false
       }).setView([lat, lng], 18);
       
       L.tileLayer(GOOGLE_HYBRID_URL, { 
@@ -114,29 +119,39 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
       }).addTo(map);
 
       mapInstance.current = map;
-      
-      // Força redimensionamento para evitar tiles cinzas no carregamento
-      setTimeout(() => map.invalidateSize(), 300);
+      setTimeout(() => {
+        if (mapInstance.current) mapInstance.current.invalidateSize();
+      }, 300);
     } catch (e) { console.error("MiniMap error:", e); }
 
-    return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
+    return () => { 
+        if (mapInstance.current) { 
+            mapInstance.current.remove(); 
+            mapInstance.current = null; 
+        } 
+    };
   }, [lat, lng, tag]);
 
-  return <div ref={mapRef} className="w-full h-32 rounded-xl border border-slate-700 overflow-hidden mt-2 shadow-inner" />;
+  return <div ref={mapRef} className={`w-full ${height} rounded-xl border border-slate-700 overflow-hidden mt-2 shadow-inner ${className}`} />;
 };
 
 const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSelectItem: (item: GroupItem) => void }> = ({ items, onClose, onSelectItem }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const userMarkerRef = useRef<any>(null);
-  const layerGroupRef = useRef<any>(null);
+  const accuracyCircleRef = useRef<any>(null);
+  const assetsLayerRef = useRef<any>(null); // Camada exclusiva para os ativos
+  const userLayerRef = useRef<any>(null);   // Camada exclusiva para o usuário
+  const initialFitDone = useRef(false);
   const [userPos, setUserPos] = useState<[number, number] | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
 
   useEffect(() => {
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const newPos: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         setUserPos(newPos);
+        setAccuracy(pos.coords.accuracy);
       },
       (err) => console.log("GPS erro:", err),
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
@@ -144,46 +159,72 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
+  // Inicialização do Mapa (Apenas uma vez)
   useEffect(() => {
-    if (!mapRef.current || mapInstance.current || typeof L === 'undefined') return;
+    if (!mapRef.current || typeof L === 'undefined') return;
+
     try {
       const map = L.map(mapRef.current, {
-        zoomControl: true,
-        tap: true
+        zoomControl: false,
+        tap: true,
+        scrollWheelZoom: true,
+        touchZoom: true,
+        dragging: true,
+        doubleClickZoom: true,
+        zoomAnimation: true
       }).setView([-15.7801, -47.9292], 4);
       
-      // Camada Google Hybrid (Satélite + Labels)
       L.tileLayer(GOOGLE_HYBRID_URL, { 
         attribution: SATELLITE_ATTRIBUTION,
         maxZoom: 21,
         maxNativeZoom: 19
       }).addTo(map);
 
-      layerGroupRef.current = L.layerGroup().addTo(map);
+      assetsLayerRef.current = L.layerGroup().addTo(map);
+      userLayerRef.current = L.layerGroup().addTo(map);
       mapInstance.current = map;
       
-      setTimeout(() => map.invalidateSize(), 500);
+      setTimeout(() => {
+        if(mapInstance.current) mapInstance.current.invalidateSize();
+      }, 300);
     } catch (e) { console.error("Map init error:", e); }
+
+    return () => {
+        if (mapInstance.current) {
+            mapInstance.current.remove();
+            mapInstance.current = null;
+        }
+    };
   }, []);
 
+  // Atualização da Posição do Usuário (Sem afetar zoom)
   useEffect(() => {
-    if (!mapInstance.current || !layerGroupRef.current) return;
-    layerGroupRef.current.clearLayers();
-    const bounds = L.latLngBounds([]);
-    let hasBounds = false;
+    if (!mapInstance.current || !userLayerRef.current || !userPos) return;
 
-    if (userPos) {
-      if (!userMarkerRef.current) {
+    if (!userMarkerRef.current) {
+        if (accuracy) {
+            accuracyCircleRef.current = L.circle(userPos, { radius: accuracy, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, weight: 1 }).addTo(userLayerRef.current);
+        }
         userMarkerRef.current = L.circleMarker(userPos, {
-          radius: 12, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 0.8, className: 'user-marker-pulse'
-        }).addTo(mapInstance.current);
-        userMarkerRef.current.bindTooltip("Localização Atual", { permanent: false, direction: 'top' });
-      } else {
+            radius: 12, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 0.8, className: 'user-marker-pulse'
+        }).addTo(userLayerRef.current);
+        userMarkerRef.current.bindTooltip("Você", { permanent: false, direction: 'top' });
+    } else {
         userMarkerRef.current.setLatLng(userPos);
-      }
-      bounds.extend(userPos);
-      hasBounds = true;
+        if (accuracyCircleRef.current && accuracy) {
+            accuracyCircleRef.current.setLatLng(userPos);
+            accuracyCircleRef.current.setRadius(accuracy);
+        }
     }
+  }, [userPos, accuracy]);
+
+  // Atualização de Marcadores de Ativos e Fit Inicial
+  useEffect(() => {
+    if (!mapInstance.current || !assetsLayerRef.current || items.length === 0) return;
+
+    assetsLayerRef.current.clearLayers();
+    const bounds = L.latLngBounds([]);
+    let hasGeo = false;
 
     items.forEach(item => {
       const geo = item.data?.["Geolocalização"];
@@ -191,7 +232,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
         const parts = geo.split(',').map((p: string) => parseFloat(p.trim()));
         if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
           const [lat, lng] = parts;
-          let color = '#3b82f6'; // ctv
+          let color = '#3b82f6'; 
           if (item.groupType === 'telecom') color = '#6366f1';
           if (item.groupType === 'painel') color = '#f97316';
           if (item.groupType === 'embarcados') color = '#10b981';
@@ -220,50 +261,69 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
              if (btn) btn.onclick = () => { onSelectItem(item); onClose(); };
           });
 
-          layerGroupRef.current.addLayer(marker);
+          assetsLayerRef.current.addLayer(marker);
           bounds.extend([lat, lng]);
-          hasBounds = true;
+          hasGeo = true;
         }
       }
     });
 
-    if (hasBounds && mapInstance.current) {
-        mapInstance.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 18 });
+    // SÓ FAZ O FITBOUNDS UMA VEZ NA VIDA DO MODAL
+    if (hasGeo && !initialFitDone.current) {
+        if (userPos) bounds.extend(userPos);
+        mapInstance.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+        initialFitDone.current = true;
     }
-  }, [items, userPos, onSelectItem, onClose]);
+  }, [items]); // Depende apenas dos itens, não do GPS, para evitar instabilidade
+
+  const handleZoomIn = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      mapInstance.current?.zoomIn();
+  };
+  
+  const handleZoomOut = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      mapInstance.current?.zoomOut();
+  };
+  
+  const handleRecenter = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if(userPos && mapInstance.current) {
+          mapInstance.current.setView(userPos, 19, {animate: true});
+      }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-800 w-full h-[95vh] sm:h-[85vh] sm:max-w-6xl sm:rounded-[2.5rem] overflow-hidden flex flex-col border border-slate-700 shadow-2xl">
-        <div className="p-4 sm:p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 backdrop-blur-md">
+      <div className="bg-slate-800 w-full h-[100vh] sm:h-[85vh] sm:max-w-6xl sm:rounded-[2.5rem] overflow-hidden flex flex-col border border-slate-700 shadow-2xl relative">
+        <div className="p-4 sm:p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 backdrop-blur-md z-20 relative">
           <div className="flex items-center gap-3">
              <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl"><Globe className="w-5 h-5" /></div>
-             <h3 className="font-black text-white text-base tracking-tighter uppercase">Painel Satélite de Ativos</h3>
+             <h3 className="font-black text-white text-sm sm:text-base tracking-tighter uppercase">Painel Satélite</h3>
           </div>
           <div className="flex gap-2.5">
-            <button onClick={() => userPos && mapInstance.current?.setView(userPos, 19, {animate: true})} className="p-2.5 bg-blue-600 text-white rounded-xl active:scale-90 transition-all shadow-lg"><Locate className="w-6 h-6" /></button>
-            <button onClick={onClose} className="p-2.5 bg-slate-700 rounded-xl text-slate-400 active:scale-90 transition-all"><X className="w-6 h-6" /></button>
+             <button onClick={onClose} className="p-2.5 bg-slate-700 rounded-xl text-slate-400 active:scale-90 transition-all"><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
           </div>
         </div>
-        <div className="flex-1 relative bg-slate-900">
-            <div ref={mapRef} className="absolute inset-0 z-0" />
+        <div className="flex-1 relative bg-slate-900 z-10">
+            <div ref={mapRef} className="absolute inset-0 z-0 bg-slate-950" />
             
-            <div className="absolute bottom-6 left-6 z-10 p-4 bg-slate-800/90 backdrop-blur-xl rounded-2xl border border-white/5 pointer-events-none shadow-2xl">
-                <div className="flex items-center gap-2.5">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-3 pointer-events-auto">
+                <button onClick={handleZoomIn} className="p-3 bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-xl text-white shadow-xl hover:bg-slate-700 active:scale-90"><ZoomIn size={20} /></button>
+                <button onClick={handleZoomOut} className="p-3 bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-xl text-white shadow-xl hover:bg-slate-700 active:scale-90"><ZoomOut size={20} /></button>
+                <button onClick={handleRecenter} className="p-3 bg-blue-600 border border-white/20 rounded-xl text-white shadow-xl hover:bg-blue-500 active:scale-90"><Locate size={20} /></button>
+            </div>
+
+            <div className="absolute bottom-6 left-4 right-4 sm:left-6 sm:right-auto z-20 pointer-events-none">
+                <div className="p-3 sm:p-4 bg-slate-800/90 backdrop-blur-xl rounded-2xl border border-white/5 shadow-2xl inline-flex items-center gap-2.5">
                     <div className={`w-2.5 h-2.5 rounded-full ${userPos ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{userPos ? 'GPS Sincronizado' : 'Buscando Satélites...'}</span>
+                    <span className="text-[9px] sm:text-[10px] font-black text-white uppercase tracking-widest">{userPos ? 'GPS Sincronizado' : 'Buscando Satélites...'}</span>
                 </div>
             </div>
         </div>
       </div>
     </div>
   );
-};
-
-const isKeyVisible = (k: string) => {
-  if (!k) return false;
-  const key = k.toLowerCase();
-  return !key.includes('geo') && !key.includes('link') && k.trim() !== "";
 };
 
 const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; user: User; onClose: () => void; onDelete: (id: string) => void; }> = ({ item, groupKey, config, user, onClose, onDelete }) => {
@@ -308,70 +368,70 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   };
 
   return (
-      <div className="bg-slate-900 min-h-screen sm:min-h-[500px] sm:rounded-[2.5rem] border-x sm:border border-slate-700 shadow-2xl overflow-hidden flex flex-col animate-slideUp">
-          <div className={`p-5 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-20`}>
-              <div className="flex items-center gap-4">
+      <div className="bg-slate-900 min-h-screen sm:min-h-[600px] sm:rounded-[2.5rem] border-x sm:border border-slate-700 shadow-2xl overflow-hidden flex flex-col animate-slideUp">
+          <div className={`p-4 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-20`}>
+              <div className="flex items-center gap-3 sm:gap-4">
                   <button onClick={onClose} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl transition-all"><ArrowLeft className="w-5 h-5" /></button>
-                  <h2 className="text-xl font-black tracking-tighter uppercase truncate max-w-[200px]">{isEditing ? "Edição" : (editData["Tag"] || "Detalhes")}</h2>
+                  <h2 className="text-base sm:text-xl font-black uppercase truncate max-w-[150px] sm:max-w-xs">{isEditing ? "Edição" : (editData["Tag"] || "Detalhes")}</h2>
               </div>
               <div className="flex gap-2">
-                 {!isEditing && <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-white/20 rounded-lg text-xs font-black uppercase flex items-center gap-2 transition-all hover:bg-white/30"><Edit className="w-4 h-4" /> Editar</button>}
+                 {!isEditing && <button onClick={() => setIsEditing(true)} className="px-3 sm:px-4 py-2 bg-white/20 rounded-lg text-[10px] sm:text-xs font-black uppercase flex items-center gap-2 transition-all hover:bg-white/30"><Edit className="w-4 h-4" /> <span className="hidden sm:inline">Editar</span></button>}
                  <button onClick={() => confirm("Remover permanentemente?") && onDelete(item.id)} className="p-2 bg-red-500/20 text-red-400 rounded-lg"><Trash2 className="w-5 h-5" /></button>
               </div>
           </div>
-          <div className="p-6 sm:p-10 space-y-8 flex-1 overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 flex flex-col gap-4 shadow-xl">
+          <div className="p-4 sm:p-10 space-y-6 sm:space-y-8 flex-1 overflow-y-auto pb-24 sm:pb-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-slate-800 p-4 sm:p-6 rounded-2xl border border-slate-700 flex flex-col gap-4 shadow-xl">
                     <div className="flex items-center gap-4">
                       <div className={`p-3 rounded-xl border ${location ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}><MapPin className="w-6 h-6" /></div>
                       <div className="flex-1">
                          <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Coordenadas Atuais</h4>
-                         <p className="text-sm text-slate-200 font-mono font-black">{location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : "Não registrado"}</p>
+                         <p className="text-xs sm:text-sm text-slate-200 font-mono font-black break-all">{location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : "Não registrado"}</p>
                       </div>
                       {isEditing && location && (
                         <button onClick={() => setLocation(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg"><MapPinOff className="w-5 h-5" /></button>
                       )}
                     </div>
-                    {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={editData["Tag"]} />}
+                    {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={editData["Tag"]} height="h-48 sm:h-64" />}
                     <div className="grid grid-cols-2 gap-2">
                         {isEditing ? (
-                            <button onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat:p.coords.latitude, lng:p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy:true}) }} className="col-span-2 py-4 bg-blue-600 text-white text-[10px] font-black uppercase rounded-xl">{gettingLocation ? "Obtendo GPS..." : "Capturar Localização"}</button>
+                            <button onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat:p.coords.latitude, lng:p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy:true}) }} className="col-span-2 py-4 bg-blue-600 text-white text-[10px] font-black uppercase rounded-xl active:scale-95 transition-all">{gettingLocation ? "Obtendo GPS..." : "Capturar Localização"}</button>
                         ) : location && (
                             <>
-                                <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`, '_blank')} className="py-3 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-xl flex items-center justify-center gap-2"><Navigation2 className="w-3 h-3" /> Rota</button>
-                                <button onClick={downloadItemKML} className="py-3 bg-slate-700 text-white text-[10px] font-black uppercase rounded-xl flex items-center justify-center gap-2"><FileDown className="w-3 h-3" /> KML</button>
+                                <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`, '_blank')} className="py-3 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all"><Navigation2 className="w-3 h-3" /> Rota</button>
+                                <button onClick={downloadItemKML} className="py-3 bg-slate-700 text-white text-[10px] font-black uppercase rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all"><FileDown className="w-3 h-3" /> KML</button>
                             </>
                         )}
                     </div>
                 </div>
-                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 flex items-center gap-4">
+                <div className="bg-slate-800 p-4 sm:p-6 rounded-2xl border border-slate-700 flex items-center gap-4 h-fit">
                     <div className="p-3 bg-slate-700/50 text-slate-400 rounded-xl"><Clock className="w-6 h-6" /></div>
                     <div><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Registrado em</h4><p className="text-sm text-slate-200 font-black">{item.createdAt ? item.createdAt.toDate().toLocaleDateString('pt-BR') : "---"}</p></div>
                 </div>
               </div>
-              <div className="space-y-4 pb-10">
+              <div className="space-y-4">
                  <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">Ficha Técnica do Ativo</h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.entries(editData).filter(([k]) => isKeyVisible(k)).map(([key, value]) => (
-                        <div key={key} className="bg-slate-800/50 p-5 rounded-xl border border-slate-700/50">
-                          <h5 className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-2"><Database className="w-3 h-3 inline mr-1" /> {key}</h5>
+                        <div key={key} className="bg-slate-800/50 p-4 sm:p-5 rounded-xl border border-slate-700/50">
+                          <h5 className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-2 truncate"><Database className="w-3 h-3 inline mr-1" /> {key}</h5>
                           {isEditing ? (
                             <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none font-bold focus:border-blue-500 shadow-inner" />
                           ) : (
-                            <p className="text-white font-black text-base uppercase">{String(value)}</p>
+                            <p className="text-white font-black text-sm sm:text-base uppercase break-words">{String(value)}</p>
                           )}
                         </div>
                     ))}
                  </div>
               </div>
-              {isEditing && (
-                <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-900/95 backdrop-blur border-t border-slate-700 z-30 sm:relative sm:p-0 sm:bg-transparent sm:border-none">
-                    <button onClick={handleSave} disabled={isSaving} className={`w-full py-5 rounded-2xl text-white font-black uppercase text-[11px] tracking-widest ${config.color} shadow-2xl flex justify-center items-center gap-3`}>
-                        {isSaving ? <Loader2 className="animate-spin w-5 h-5"/> : <Save className="w-5 h-5"/>} Salvar Alterações
-                    </button>
-                </div>
-              )}
           </div>
+          {isEditing && (
+            <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-6 bg-slate-900/95 backdrop-blur border-t border-slate-700 z-30 sm:relative sm:bg-transparent sm:border-none">
+                <button onClick={handleSave} disabled={isSaving} className={`w-full py-4 sm:py-5 rounded-2xl text-white font-black uppercase text-[11px] tracking-widest ${config.color} shadow-2xl flex justify-center items-center gap-3 active:scale-95 transition-all`}>
+                    {isSaving ? <Loader2 className="animate-spin w-5 h-5"/> : <Save className="w-5 h-5"/>} Salvar Alterações
+                </button>
+            </div>
+          )}
       </div>
   );
 };
@@ -384,12 +444,12 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
 
   return (
     <div onClick={onSelect} className="relative flex flex-col bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-slate-700/60 p-1 shadow-xl hover:shadow-blue-500/10 transition-all cursor-pointer active:scale-95 group overflow-hidden">
-      <div className="p-5 flex flex-col gap-3">
+      <div className="p-4 sm:p-5 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-base font-black text-white truncate tracking-tighter uppercase"><HighlightedText text={tagValue} highlight={searchHighlight} /></h3>
-          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
-             <button onClick={(e) => onEdit(e, item)} className="p-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/30"><Edit className="w-4 h-4" /></button>
-             <button onClick={(e) => onDelete(e, item.id)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/30"><Trash2 className="w-4 h-4" /></button>
+          <h3 className="text-sm sm:text-base font-black text-white truncate tracking-tighter uppercase"><HighlightedText text={tagValue} highlight={searchHighlight} /></h3>
+          <div className="flex gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+             <button onClick={(e) => onEdit(e, item)} className="p-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/30 active:scale-90"><Edit className="w-4 h-4" /></button>
+             <button onClick={(e) => onDelete(e, item.id)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/30 active:scale-90"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
         <div className="flex items-center gap-2 text-slate-400 bg-slate-900/40 px-3 py-2 rounded-xl border border-white/5">
@@ -397,7 +457,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
           <span className="text-[10px] font-black truncate uppercase tracking-tight">{localValue}</span>
         </div>
 
-        {/* Exibição dos Switches para Painéis */}
         {config.id === 'painel' && (
           <div className="flex flex-col gap-1.5 mt-1 border-t border-white/5 pt-2">
             {['Switch1', 'Switch2', 'Switch3'].map((swKey, idx) => data[swKey] && (
@@ -423,7 +482,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
 
 const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void; initialSelectedItem?: GroupItem | null }> = ({ groupKey, user, onBack, initialSelectedItem }) => {
   const config = groupsConfig[groupKey];
-  const Icon = config.icon;
   const [items, setItems] = useState<GroupItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<GroupItem | null>(initialSelectedItem || null);
   const [loading, setLoading] = useState(false);
@@ -471,77 +529,77 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
 
   return (
     <div className="pb-24 animate-fadeIn">
-      <div className="p-8 sm:p-12 mb-8 bg-slate-800/60 rounded-[3rem] border border-slate-700 flex flex-col gap-6 shadow-2xl">
+      <div className="p-6 sm:p-12 mb-6 sm:mb-8 bg-slate-800/60 rounded-3xl sm:rounded-[3rem] border border-slate-700 flex flex-col gap-6 shadow-2xl">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-6">
-            <button onClick={onBack} className="p-4 bg-slate-700 rounded-2xl text-slate-300 transition-all hover:bg-slate-600 active:scale-90"><ArrowLeft className="w-7 h-7" /></button>
+          <div className="flex items-center gap-4 sm:gap-6">
+            <button onClick={onBack} className="p-3 sm:p-4 bg-slate-700 rounded-2xl text-slate-300 transition-all hover:bg-slate-600 active:scale-90"><ArrowLeft className="w-5 h-5 sm:w-7 sm:h-7" /></button>
             <div>
-              <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tighter uppercase leading-none">{config.label}</h2>
-              <span className="text-[10px] uppercase tracking-widest font-black text-slate-500 mt-2 block">Central de Ativos Industriais</span>
+              <h2 className="text-2xl sm:text-5xl font-black text-white tracking-tighter uppercase leading-none">{config.label}</h2>
+              <span className="text-[9px] sm:text-[10px] uppercase tracking-widest font-black text-slate-500 mt-1 sm:mt-2 block">Central de Ativos Industriais</span>
             </div>
           </div>
-          <button onClick={() => setIsModalOpen(true)} className={`hidden sm:flex px-8 py-4 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[11px] tracking-widest items-center gap-3 shadow-2xl hover:scale-105 active:scale-95 transition-all`}>
-            <Plus className="w-5 h-5" /> Novo Registro
+          <button onClick={() => setIsModalOpen(true)} className={`hidden sm:flex px-6 sm:px-8 py-3 sm:py-4 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] sm:text-[11px] tracking-widest items-center gap-3 shadow-2xl hover:scale-105 active:scale-95 transition-all`}>
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5" /> Novo Registro
           </button>
         </div>
       </div>
 
-      <div className="relative mb-10 group">
-        <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-        <input type="text" placeholder={`Buscar por tag, IP ou local...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 pr-6 py-5 bg-slate-800/80 border border-slate-700 rounded-3xl text-white text-lg outline-none font-black placeholder-slate-600 shadow-2xl focus:border-blue-500 transition-all backdrop-blur-md" />
+      <div className="relative mb-8 sm:mb-10 group">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 sm:h-6 sm:w-6 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+        <input type="text" placeholder={`Buscar por tag, IP ou local...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 sm:pl-14 pr-6 py-4 sm:py-5 bg-slate-800/80 border border-slate-700 rounded-3xl text-white text-base sm:text-lg outline-none font-black placeholder-slate-600 shadow-2xl focus:border-blue-500 transition-all backdrop-blur-md" />
       </div>
 
-      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
         {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} onDelete={(e, id) => { e.stopPropagation(); confirm("Remover?") && deleteDoc(doc(db, groupKey, id)) }} onEdit={(e, i) => { e.stopPropagation(); setSelectedItem(i); }} searchHighlight={searchTerm} />)}
       </div>
 
-      <button onClick={() => setIsModalOpen(true)} className={`fixed bottom-8 right-8 w-20 h-20 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl z-40 bg-gradient-to-r ${config.gradient} hover:scale-110 active:scale-90 transition-all border-2 border-white/20`}><Plus className="w-10 h-10" /></button>
+      <button onClick={() => setIsModalOpen(true)} className={`fixed bottom-6 right-6 sm:bottom-8 sm:right-8 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl z-40 bg-gradient-to-r ${config.gradient} hover:scale-110 active:scale-90 transition-all border-2 border-white/20`}><Plus className="w-8 h-8 sm:w-10 sm:h-10" /></button>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-black/95 backdrop-blur-md p-0 sm:p-4 animate-fadeIn">
           <div className="bg-slate-800 w-full h-[95vh] sm:h-auto sm:max-w-md sm:rounded-[3rem] border-t sm:border border-slate-600 overflow-y-auto">
-            <div className={`p-7 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10 shadow-xl`}>
-              <h3 className="text-xl font-black tracking-tighter uppercase leading-none">Novo Cadastro</h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-3 bg-white/10 rounded-xl hover:bg-white/20 transition-all"><X className="w-6 h-6" /></button>
+            <div className={`p-6 sm:p-7 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10 shadow-xl`}>
+              <h3 className="text-lg sm:text-xl font-black tracking-tighter uppercase leading-none">Novo Cadastro</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 sm:p-3 bg-white/10 rounded-xl hover:bg-white/20 transition-all"><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
             </div>
-            <form onSubmit={handleSave} className="p-7 space-y-6">
-              <button type="button" onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat: p.coords.latitude, lng: p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy: true}) }} className={`w-full py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex flex-col items-center gap-2 transition-all shadow-xl ${location ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 text-blue-400 border border-slate-600'}`}>
+            <form onSubmit={handleSave} className="p-6 sm:p-7 space-y-5 sm:space-y-6">
+              <button type="button" onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat: p.coords.latitude, lng: p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy: true}) }} className={`w-full py-4 sm:py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex flex-col items-center gap-2 transition-all shadow-xl active:scale-95 ${location ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 text-blue-400 border border-slate-600'}`}>
                 <div className="flex items-center gap-2">{gettingLocation ? <Loader2 className="animate-spin w-5 h-5"/> : location ? <CheckCircle className="w-5 h-5"/> : <Crosshair className="w-5 h-5"/>} {location ? "GPS LOCALIZADO" : "CAPTURAR GPS"}</div>
               </button>
               
               {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
 
               <div className="space-y-4">
-                <input type="text" placeholder="Tag do Ativo" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black uppercase focus:border-blue-500 outline-none transition-all" />
+                <input type="text" placeholder="Tag do Ativo" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black uppercase focus:border-blue-500 outline-none transition-all" />
                 
                 {groupKey === 'painel' ? (
                    <>
                      <div className="grid grid-cols-1 gap-2">
-                        {['switch1', 'switch2', 'switch3'].map((sw, i) => <input key={sw} type="text" placeholder={`Link Switch 0${i+1}`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-5 py-3 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-mono focus:border-blue-500 outline-none" />)}
+                        {['switch1', 'switch2', 'switch3'].map((sw, i) => <input key={sw} type="text" placeholder={`Link Switch 0${i+1}`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-4 sm:px-5 py-3 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs sm:text-sm font-mono focus:border-blue-500 outline-none" />)}
                      </div>
-                     <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase focus:border-blue-500 outline-none appearance-none">
+                     <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs sm:text-sm font-black uppercase focus:border-blue-500 outline-none appearance-none">
                         <option value="">Selecione o Local...</option>
                         {Object.keys(SYSTEM_DATA).map(loc => <option key={loc} value={loc}>{loc}</option>)}
                         <option value="NOVO">+ NOVO LOCAL</option>
                      </select>
-                     {formData.local === "NOVO" && <input type="text" placeholder="Nome do Local" value={formData.customLocal} onChange={e => setFormData({...formData, customLocal: e.target.value})} className="w-full px-5 py-4 bg-slate-900 border border-blue-500/30 rounded-2xl text-white text-sm font-black uppercase" />}
+                     {formData.local === "NOVO" && <input type="text" placeholder="Nome do Local" value={formData.customLocal} onChange={e => setFormData({...formData, customLocal: e.target.value})} className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-slate-900 border border-blue-500/30 rounded-2xl text-white text-xs sm:text-sm font-black uppercase" />}
                      
-                     <select disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase focus:border-blue-500 outline-none disabled:opacity-30">
+                     <select disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs sm:text-sm font-black uppercase focus:border-blue-500 outline-none disabled:opacity-30">
                         <option value="">Selecione o Ativo...</option>
                         {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                         <option value="NOVO">+ NOVO ATIVO</option>
                      </select>
-                     {formData.equipamento === "NOVO" && <input type="text" placeholder="Nome do Ativo" value={formData.customEquipamento} onChange={e => setFormData({...formData, customEquipamento: e.target.value})} className="w-full px-5 py-4 bg-slate-900 border border-blue-500/30 rounded-2xl text-white text-sm font-black uppercase" />}
+                     {formData.equipamento === "NOVO" && <input type="text" placeholder="Nome do Ativo" value={formData.customEquipamento} onChange={e => setFormData({...formData, customEquipamento: e.target.value})} className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-slate-900 border border-blue-500/30 rounded-2xl text-white text-xs sm:text-sm font-black uppercase" />}
                    </>
                 ) : (
                    <>
-                     <input type="text" placeholder="Localização Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase focus:border-blue-500 outline-none" />
-                     <input type="text" placeholder="Endereço IP / Identificador" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-mono focus:border-blue-500 outline-none" />
+                     <input type="text" placeholder="Localização Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs sm:text-sm font-black uppercase focus:border-blue-500 outline-none" />
+                     <input type="text" placeholder="Endereço IP / Identificador" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs sm:text-sm font-mono focus:border-blue-500 outline-none" />
                    </>
                 )}
               </div>
-              <button type="submit" disabled={loading} className={`w-full py-6 rounded-3xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[11px] tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50`}>
-                 {loading ? <Loader2 className="animate-spin w-6 h-6"/> : "Concluir Cadastro"}
+              <button type="submit" disabled={loading} className={`w-full py-5 sm:py-6 rounded-3xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] sm:text-[11px] tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50`}>
+                 {loading ? <Loader2 className="animate-spin w-5 h-5 sm:w-6 sm:h-6"/> : "Concluir Cadastro"}
               </button>
             </form>
           </div>
@@ -553,82 +611,100 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [currentView, setCurrentView] = useState<ViewState>('home');
+  const [allData, setAllData] = useState<GroupItem[]>([]);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-  const [allMapItems, setAllMapItems] = useState<GroupItem[]>([]);
   const [loadingMap, setLoadingMap] = useState(false);
-  const [itemFromMap, setItemFromMap] = useState<GroupItem | null>(null);
+  const [itemFromSearch, setItemFromSearch] = useState<GroupItem | null>(null);
+
+  useEffect(() => {
+    const colls = ['ctv', 'telecom', 'painel', 'embarcados'];
+    const unsubs = colls.map((c, idx) => 
+      onSnapshot(collection(db, c), (snap) => {
+        const newItems = snap.docs.map(d => ({ 
+          id: d.id, 
+          ...d.data(), 
+          groupType: colls[idx] as GroupType 
+        } as GroupItem));
+        setAllData(prev => {
+          const other = prev.filter(i => i.groupType !== colls[idx]);
+          return [...other, ...newItems];
+        });
+      })
+    );
+    return () => unsubs.forEach(u => u());
+  }, []);
 
   const handleOpenGlobalMap = async () => {
     setLoadingMap(true);
     try {
-      const colls = ['ctv', 'telecom', 'painel', 'embarcados'];
-      const results = await Promise.all(colls.map(c => getDocs(collection(db, c))));
-      const items = results.flatMap((snap, idx) => snap.docs.map(d => ({ id: d.id, ...d.data(), groupType: colls[idx] as GroupType })));
-      setAllMapItems(items);
       setIsMapModalOpen(true);
-    } catch (e) { console.error("Map fetch error:", e); } finally { setLoadingMap(false); }
+    } catch (e) { console.error(e); } finally { setLoadingMap(false); }
   };
 
-  if (currentView !== 'home') return <div className="min-h-screen bg-slate-900 p-4 sm:p-12"><div className="max-w-7xl mx-auto"><GroupPage groupKey={currentView} user={user} onBack={() => { setCurrentView('home'); setItemFromMap(null); }} initialSelectedItem={itemFromMap} /></div></div>;
+  if (currentView !== 'home') return (
+    <div className="min-h-screen bg-slate-900 p-4 sm:p-12">
+        <div className="max-w-7xl mx-auto">
+            <GroupPage 
+                groupKey={currentView} 
+                user={user} 
+                onBack={() => { setCurrentView('home'); setItemFromSearch(null); }} 
+                initialSelectedItem={itemFromSearch} 
+            />
+        </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-900 p-6 sm:p-16 text-white relative flex flex-col">
+    <div className="min-h-screen bg-slate-900 p-6 sm:p-20 text-white relative flex flex-col">
       <div className="absolute top-[-15%] left-[-10%] w-[60%] h-[60%] bg-blue-600/10 blur-[150px] rounded-full pointer-events-none"></div>
       
-      {isMapModalOpen && <GlobalMapModal items={allMapItems} onClose={() => setIsMapModalOpen(false)} onSelectItem={(item) => { setItemFromMap(item); setCurrentView(item.groupType as GroupType); }} />}
+      {isMapModalOpen && <GlobalMapModal items={allData} onClose={() => setIsMapModalOpen(false)} onSelectItem={(item) => { setItemFromSearch(item); setCurrentView(item.groupType as GroupType); }} />}
       
-      <div className="max-w-6xl mx-auto w-full space-y-12 animate-fadeIn relative z-10 flex-1">
-        <header className="flex flex-col gap-8">
+      <div className="max-w-7xl mx-auto w-full space-y-16 animate-fadeIn relative z-10 flex-1">
+        <header className="flex flex-col gap-12">
           <div className="flex justify-between items-center">
-            <div className="inline-flex items-center gap-3 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-[9px] font-black uppercase tracking-[0.3em] text-blue-400">
-              <div className="w-2 h-2 rounded-full bg-blue-400 animate-ping"></div> TagFinder Pro v4
+            <div className="inline-flex items-center gap-4 px-6 py-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.5em] text-blue-400 shadow-2xl">
+               TAGFINDER ENTERPRISE V6.0 <Activity className="w-4 h-4 animate-pulse" />
             </div>
-            <button onClick={() => signOut(auth)} className="p-4 bg-slate-800 border border-slate-700 rounded-2xl text-slate-500 hover:text-red-500 transition-all active:scale-90 shadow-2xl"><LogOut className="w-6 h-6" /></button>
+            <button onClick={() => signOut(auth)} className="p-5 bg-slate-800 border border-slate-700 rounded-3xl text-slate-500 hover:text-red-500 transition-all shadow-2xl active:scale-90"><LogOut size={28} /></button>
           </div>
           
-          <div>
-            <h1 className="text-4xl sm:text-7xl font-black tracking-tighter leading-none uppercase">
-              Bem-vindo, <br/><span className="text-blue-500 drop-shadow-2xl">{user.displayName || user.email?.split('@')[0]}</span>
-            </h1>
-            <p className="text-slate-500 text-sm sm:text-lg font-bold uppercase tracking-wider mt-4 opacity-70">Sistema Georreferenciado de Inventário Industrial</p>
-          </div>
-
-          <button 
-            onClick={handleOpenGlobalMap} 
-            disabled={loadingMap} 
-            className="group relative overflow-hidden w-full p-10 sm:p-14 rounded-[3.5rem] bg-slate-800/60 border border-slate-700 shadow-2xl transition-all active:scale-[0.98] hover:bg-slate-800 hover:border-blue-500/30 text-left"
-          >
-            <div className="absolute top-0 right-0 p-48 bg-blue-600/10 rounded-full blur-[120px] -mr-24 -mt-24"></div>
-            <div className="flex items-center justify-between gap-6 relative z-10">
-              <div className="flex items-center gap-8">
-                <div className="p-6 sm:p-8 bg-blue-500/20 text-blue-400 rounded-[2.5rem] ring-8 ring-white/5 group-hover:scale-110 transition-all shadow-2xl">
-                  {loadingMap ? <Loader2 className="w-10 h-10 animate-spin"/> : <Globe className="w-10 h-10" />}
-                </div>
-                <div>
-                   <h3 className="text-2xl sm:text-4xl font-black text-white tracking-tighter uppercase leading-none">Mapa Geral Satélite</h3>
-                   <p className="text-slate-400 text-[10px] sm:text-[12px] font-black uppercase tracking-widest mt-3 opacity-60">Visão Híbrida de Alta Resolução • Ativos Ativos</p>
-                </div>
-              </div>
-              <div className="hidden sm:flex w-16 h-16 rounded-full bg-slate-700 items-center justify-center group-hover:bg-blue-600 transition-all shadow-2xl">
-                 <ArrowRight className="w-8 h-8 text-white" />
-              </div>
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-12">
+            <div>
+              <h1 className="text-5xl sm:text-8xl font-black tracking-tighter uppercase leading-none">Status, <br/><span className="text-blue-500 drop-shadow-2xl">{user.email?.split('@')[0]}</span></h1>
+              <p className="text-slate-500 text-sm sm:text-lg font-bold uppercase tracking-[0.3em] mt-8 opacity-70 italic border-l-4 border-blue-500 pl-6">Monitoramento Georreferenciado e Gestão de Ativos Industriais</p>
             </div>
-          </button>
+            
+            <button onClick={handleOpenGlobalMap} disabled={loadingMap} className="group bg-slate-800/80 p-10 sm:p-16 rounded-[4.5rem] border border-slate-700 shadow-2xl hover:border-blue-500/40 transition-all active:scale-[0.98] text-left relative overflow-hidden flex items-center gap-12">
+               <div className="absolute top-0 right-0 p-40 bg-blue-600/10 rounded-full blur-[120px] -mr-20 -mt-20"></div>
+               <div className="p-8 bg-blue-500/10 text-blue-400 rounded-[2.5rem] group-hover:scale-110 transition-all shadow-xl relative z-10 ring-[12px] ring-white/5">
+                  {loadingMap ? <Loader2 className="animate-spin" size={48}/> : <Globe size={48} />}
+               </div>
+               <div className="relative z-10">
+                  <h3 className="text-3xl sm:text-4xl font-black uppercase text-white leading-none tracking-tight">Painel Satélite</h3>
+                  <p className="text-[11px] font-black text-slate-500 uppercase mt-4 tracking-[0.4em]">Visão Estratégica Híbrida em Tempo Real</p>
+               </div>
+            </button>
+          </div>
         </header>
 
-        <section className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-6 pb-16">
-          {Object.entries(groupsConfig).map(([key, group]) => (
-             <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-800/40 backdrop-blur-2xl p-8 sm:p-10 rounded-[3rem] border border-slate-700/50 flex flex-col items-start transition-all active:scale-95 shadow-2xl hover:bg-slate-700/60">
-               <div className={`w-14 h-14 sm:w-20 sm:h-20 rounded-3xl ${group.lightColor} ${group.textColor} flex items-center justify-center mb-8 ring-8 ring-white/5 shadow-2xl border border-white/5`}><group.icon className="w-8 h-8 sm:w-10 sm:h-10" /></div>
-               <h2 className="text-2xl font-black mb-3 tracking-tighter uppercase leading-none">{group.label}</h2>
-               <div className={`inline-flex items-center gap-3 font-black text-[9px] uppercase tracking-widest ${group.textColor}`}>Gerenciar Inventário <ArrowRight className="w-4 h-4" /></div>
-             </button>
-          ))}
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-10 pb-24">
+            {Object.entries(groupsConfig).map(([key, group]) => (
+            <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-900/60 p-6 sm:p-14 rounded-[2rem] sm:rounded-[4rem] border border-slate-800/80 flex flex-col items-start transition-all hover:bg-slate-800 hover:border-white/10 active:scale-95 shadow-xl sm:shadow-[0_30px_60px_rgba(0,0,0,0.4)]">
+                <div className={`w-12 h-12 sm:w-24 sm:h-24 rounded-xl sm:rounded-[2rem] ${group.lightColor} ${group.textColor} flex items-center justify-center mb-4 sm:mb-12 border border-white/5 transition-all group-hover:scale-110 shadow-2xl ring-4 sm:ring-8 ring-white/5`}>
+                  <group.icon className="w-6 h-6 sm:w-11 sm:h-11" />
+                </div>
+                <h2 className="text-sm sm:text-3xl font-black tracking-tighter uppercase leading-none mb-2 sm:mb-5">{group.label}</h2>
+                <div className={`inline-flex items-center gap-2 sm:gap-4 text-[8px] sm:text-[11px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] ${group.textColor} opacity-60 group-hover:opacity-100 transition-opacity`}>
+                  EXPLORAR <ArrowRight className="w-3 h-3 sm:w-5 sm:h-5" />
+                </div>
+            </button>
+            ))}
         </section>
       </div>
-      
-      <footer className="py-12 text-center mt-auto border-t border-white/5">
-        <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.4em] opacity-50">TagFinder Enterprise Cloud &copy; 2024 • Tecnologia Geográfica Avançada</p>
+
+      <footer className="py-20 text-center border-t border-white/5 mt-auto">
+        <p className="text-[11px] font-black text-slate-700 uppercase tracking-[0.6em] opacity-40">TagFinder Pro Infrastructure &copy; 2024 • Intelligence for Industrial Assets</p>
       </footer>
     </div>
   );
