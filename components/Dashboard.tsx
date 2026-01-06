@@ -18,7 +18,7 @@ import {
   LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, 
   MapPin, Loader2, Edit, X, Globe, Trash2, Crosshair, Server, 
   CheckCircle, Database, Clock, Navigation2, Locate, MapPinOff, 
-  Filter, Map as MapIcon
+  Filter, Map as MapIcon, Navigation
 } from 'lucide-react';
 
 declare const L: any;
@@ -38,7 +38,7 @@ interface GroupItem {
 }
 
 type GroupType = 'ctv' | 'telecom' | 'embarcados' | 'painel';
-type ViewState = 'home' | GroupType | 'search_results';
+type ViewState = 'home' | GroupType;
 
 const GOOGLE_HYBRID_URL = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
 const SATELLITE_ATTRIBUTION = '&copy; Google Maps';
@@ -91,16 +91,18 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
 
   useEffect(() => {
     if (!mapRef.current || typeof L === 'undefined') return;
+    
     if (mapInstance.current) {
         mapInstance.current.setView([lat, lng], 18);
-        // Add or update marker
         if (mapInstance.current._marker) {
           mapInstance.current._marker.setLatLng([lat, lng]);
         } else {
           mapInstance.current._marker = L.circleMarker([lat, lng], { radius: 8, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 1 }).addTo(mapInstance.current);
         }
+        mapInstance.current.invalidateSize();
         return;
     }
+
     try {
       const map = L.map(mapRef.current, { 
         zoomControl: false, attributionControl: false, dragging: true,
@@ -109,9 +111,16 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
       L.tileLayer(GOOGLE_HYBRID_URL, { attribution: SATELLITE_ATTRIBUTION, maxZoom: 22, maxNativeZoom: 19 }).addTo(map);
       mapInstance.current = map;
       mapInstance.current._marker = L.circleMarker([lat, lng], { radius: 8, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 1 }).addTo(map);
-      setTimeout(() => map.invalidateSize(), 300);
+      
+      setTimeout(() => map.invalidateSize(), 400);
     } catch (e) { console.error("MiniMap error:", e); }
-    return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
+
+    return () => { 
+      if (mapInstance.current) { 
+        mapInstance.current.remove(); 
+        mapInstance.current = null; 
+      } 
+    };
   }, [lat, lng, tag]);
 
   return <div ref={mapRef} className="w-full h-full rounded-2xl border border-slate-700 overflow-hidden shadow-inner bg-slate-900" />;
@@ -139,6 +148,10 @@ const ItemDetail: React.FC<{
   }
 
   const handleCapture = () => {
+    if (!navigator.geolocation) {
+      alert("Seu navegador não suporta geolocalização.");
+      return;
+    }
     setIsCapturing(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -153,9 +166,13 @@ const ItemDetail: React.FC<{
       },
       (err) => {
         setIsCapturing(false);
-        alert(`Erro ao capturar GPS: ${err.message}. Verifique as permissões do navegador.`);
+        let msg = "Erro desconhecido ao capturar GPS.";
+        if (err.code === 1) msg = "Permissão negada. Ative o GPS nas configurações do seu navegador.";
+        if (err.code === 2) msg = "Posição indisponível. Verifique se o GPS do seu aparelho está ligado.";
+        if (err.code === 3) msg = "Tempo esgotado. Tente capturar novamente em um local mais aberto.";
+        alert(msg);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
   };
 
@@ -173,9 +190,10 @@ const ItemDetail: React.FC<{
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      const finalTag = editData["Tag"] || item.content;
       await updateDoc(doc(db, groupKey, item.id), { 
         data: editData,
-        content: `Item: ${editData["Tag"] || item.content}`
+        content: `Item: ${finalTag}`
       });
       setIsEditing(false);
     } catch (e) { alert('Erro ao salvar'); } finally { setIsSaving(false); }
@@ -251,13 +269,25 @@ const ItemDetail: React.FC<{
                 <h3 className="text-sm font-black text-white uppercase tracking-widest">Localização Geográfica</h3>
               </div>
               {coords && (
-                <a href={`https://www.google.com/maps/search/?api=1&query=${coords[0]},${coords[1]}`} target="_blank" rel="noopener noreferrer" className="text-[10px] font-black text-blue-400 uppercase hover:underline flex items-center gap-1">
-                  Abrir no Maps <Globe className="w-3 h-3" />
-                </a>
+                <div className="flex gap-3">
+                  <a href={`https://www.google.com/maps/dir/?api=1&destination=${coords[0]},${coords[1]}`} target="_blank" rel="noopener noreferrer" className="text-[10px] font-black text-emerald-400 uppercase hover:underline flex items-center gap-1">
+                    Como Chegar <Navigation className="w-3 h-3" />
+                  </a>
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${coords[0]},${coords[1]}`} target="_blank" rel="noopener noreferrer" className="text-[10px] font-black text-blue-400 uppercase hover:underline flex items-center gap-1">
+                    Ver no Maps <Globe className="w-3 h-3" />
+                  </a>
+                </div>
               )}
             </div>
-            <div className="h-96 rounded-[2.5rem] border border-slate-700 overflow-hidden shadow-2xl relative bg-slate-900 group/map">
-              {coords ? <MiniMapPreview lat={coords[0]} lng={coords[1]} tag={editData["Tag"] || "Equipamento"} /> : (
+            <div className="h-96 rounded-[2.5rem] border border-slate-700 overflow-hidden shadow-2xl relative bg-slate-900 group/map flex items-center justify-center">
+              {isCapturing ? (
+                <div className="flex flex-col items-center gap-4 animate-pulse">
+                   <div className="p-8 bg-blue-500/20 rounded-full"><Crosshair className="w-12 h-12 text-blue-400 animate-spin" /></div>
+                   <span className="text-xs font-black uppercase text-blue-400 tracking-widest">Sintonizando Satélites...</span>
+                </div>
+              ) : coords ? (
+                <MiniMapPreview lat={coords[0]} lng={coords[1]} tag={editData["Tag"] || "Equipamento"} />
+              ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-4">
                   <MapPinOff className="w-16 h-16 opacity-20"/>
                   <span className="text-xs font-black uppercase tracking-widest opacity-40">Sem Georreferenciamento</span>
@@ -280,15 +310,25 @@ const ItemDetail: React.FC<{
             )}
 
             {coords && (
-              <div className="p-6 bg-blue-500/5 border border-blue-500/10 rounded-3xl flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Navigation2 className="w-5 h-5 text-blue-400" />
-                  <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase">Coordenadas</p>
-                    <p className="text-xs font-mono text-blue-200">{coords[0].toFixed(6)}, {coords[1].toFixed(6)}</p>
+              <div className="flex flex-col gap-3">
+                 <a 
+                   href={`https://www.google.com/maps/dir/?api=1&destination=${coords[0]},${coords[1]}`} 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   className="w-full py-4 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 rounded-3xl flex items-center justify-center gap-3 font-black uppercase text-xs transition-all shadow-xl active:scale-95"
+                 >
+                   <Navigation className="w-5 h-5" /> Iniciar Rota (Como Chegar)
+                 </a>
+                 <div className="p-6 bg-blue-500/5 border border-blue-500/10 rounded-3xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Navigation2 className="w-5 h-5 text-blue-400" />
+                    <div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase">Coordenadas</p>
+                      <p className="text-xs font-mono text-blue-200">{coords[0].toFixed(6)}, {coords[1].toFixed(6)}</p>
+                    </div>
                   </div>
+                  <button onClick={() => navigator.clipboard.writeText(`${coords![0]}, ${coords![1]}`)} className="px-4 py-2 bg-slate-700 rounded-xl text-[10px] font-black text-white uppercase hover:bg-slate-600 transition-all">Copiar</button>
                 </div>
-                <button onClick={() => navigator.clipboard.writeText(`${coords![0]}, ${coords![1]}`)} className="px-4 py-2 bg-slate-700 rounded-xl text-[10px] font-black text-white uppercase hover:bg-slate-600 transition-all">Copiar</button>
               </div>
             )}
           </div>
@@ -309,7 +349,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
     const watchId = navigator.geolocation.watchPosition(
       (pos) => setUserPos([pos.coords.latitude, pos.coords.longitude]),
       (err) => console.log("GPS erro:", err),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
@@ -354,9 +394,14 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
           const tagName = item.data?.["Tag"] || "Equipamento";
           marker.bindTooltip(tagName, { permanent: true, direction: 'top', className: 'tag-label', offset: [0, -8] });
           const popup = L.popup().setContent(`
-            <div class="p-2 flex flex-col gap-2">
-              <p class="text-[10px] font-black uppercase text-slate-800">${tagName}</p>
-              <button id="view-${item.id}" class="bg-blue-600 text-white px-3 py-2 rounded text-[9px] font-black uppercase">Ver Detalhes</button>
+            <div class="p-3 flex flex-col gap-3 min-w-[150px]">
+              <p class="text-[10px] font-black uppercase text-slate-800 border-b border-slate-200 pb-2">${tagName}</p>
+              <div class="flex flex-col gap-2">
+                <button id="view-${item.id}" class="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-md active:scale-95 transition-all">Ver Detalhes</button>
+                <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-md active:scale-95 transition-all text-center flex items-center justify-center gap-2">
+                  Como Chegar
+                </a>
+              </div>
             </div>
           `);
           marker.bindPopup(popup);
@@ -425,7 +470,6 @@ const ItemCard: React.FC<{ item: GroupItem; onSelect: () => void; searchHighligh
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [currentView, setCurrentView] = useState<ViewState>('home');
-  const [globalSearch, setGlobalSearch] = useState('');
   const [allItems, setAllItems] = useState<GroupItem[]>([]);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<GroupItem | null>(null);
@@ -443,18 +487,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     );
     return () => unsubscribes.forEach(unsub => unsub());
   }, []);
-
-  const filteredItems = useMemo(() => {
-    if (!globalSearch.trim()) return [];
-    const s = globalSearch.toLowerCase();
-    return allItems.filter(i => {
-      const tag = (i.data?.["Tag"] || "").toLowerCase();
-      const local = (i.data?.["Local"] || "").toLowerCase();
-      const ip = (i.data?.["IP / Identificador"] || "").toLowerCase();
-      const switches = ['Switch1', 'Switch2', 'Switch3'].map(sw => (i.data?.[sw] || "").toLowerCase());
-      return tag.includes(s) || local.includes(s) || ip.includes(s) || switches.some(v => v.includes(s));
-    });
-  }, [allItems, globalSearch]);
 
   if (selectedItem) return (
     <div className="min-h-screen bg-slate-900 p-4 sm:p-12">
@@ -493,29 +525,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 </div>
             </button>
           </div>
-          <div className="relative group max-w-2xl mx-auto sm:mx-0">
-             <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-             <input 
-               type="text" 
-               placeholder="Busca Global: Tag, Local, IP, Switch..." 
-               value={globalSearch}
-               onChange={(e) => { setGlobalSearch(e.target.value); if(currentView !== 'search_results' && e.target.value) setCurrentView('search_results'); if(!e.target.value) setCurrentView('home'); }}
-               className="w-full pl-16 pr-6 py-6 bg-slate-800 border border-slate-700 rounded-[2.5rem] text-white text-xl font-black placeholder-slate-600 focus:border-blue-500 outline-none transition-all shadow-2xl" 
-             />
-             {globalSearch && <button onClick={() => { setGlobalSearch(''); setCurrentView('home'); }} className="absolute right-6 top-1/2 -translate-y-1/2 p-2 bg-slate-700 rounded-xl text-slate-400 hover:text-white transition-all"><X className="w-5 h-5"/></button>}
-          </div>
         </header>
-        {currentView === 'search_results' ? (
-          <main className="space-y-8 animate-slideUp">
-            <div className="flex items-center justify-between">
-               <h2 className="text-2xl font-black uppercase tracking-tighter flex items-center gap-3"><Filter className="w-6 h-6 text-blue-500" /> Resultados Encontrados ({filteredItems.length})</h2>
-               <button onClick={() => { setGlobalSearch(''); setCurrentView('home'); }} className="text-[10px] font-black uppercase text-slate-500 hover:text-white flex items-center gap-2">Limpar <ArrowRight className="w-4 h-4"/></button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredItems.map(item => <ItemCard key={item.id} item={item} onSelect={() => setSelectedItem(item)} searchHighlight={globalSearch} />)}
-            </div>
-          </main>
-        ) : currentView === 'home' ? (
+
+        {currentView === 'home' ? (
           <main className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-6 pb-20">
             {Object.entries(groupsConfig).map(([key, group]) => (
                <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-800/40 backdrop-blur-2xl p-10 rounded-[3rem] border border-slate-700/50 flex flex-col items-start transition-all active:scale-95 shadow-2xl hover:bg-slate-700/60">
@@ -543,6 +555,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [loading, setLoading] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     return onSnapshot(query(collection(db, groupKey), orderBy('createdAt', 'desc')), (snap) => {
@@ -550,7 +563,23 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     });
   }, [groupKey]);
 
+  const filteredItems = useMemo(() => {
+    if (!searchTerm.trim()) return items;
+    const s = searchTerm.toLowerCase();
+    return items.filter(i => {
+      const tag = (i.data?.["Tag"] || "").toLowerCase();
+      const local = (i.data?.["Local"] || "").toLowerCase();
+      const ip = (i.data?.["IP / Identificador"] || "").toLowerCase();
+      const switches = ['Switch1', 'Switch2', 'Switch3'].map(sw => (i.data?.[sw] || "").toLowerCase());
+      return tag.includes(s) || local.includes(s) || ip.includes(s) || switches.some(v => v.includes(s));
+    });
+  }, [items, searchTerm]);
+
   const handleCapture = () => {
+    if (!navigator.geolocation) {
+      alert("Seu navegador não suporta geolocalização.");
+      return;
+    }
     setIsCapturing(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -559,9 +588,13 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
       },
       (err) => {
         setIsCapturing(false);
-        alert(`Erro ao capturar GPS: ${err.message}. Verifique as permissões de localização.`);
+        let msg = "Erro desconhecido ao capturar GPS.";
+        if (err.code === 1) msg = "Permissão negada. Ative o GPS nas configurações do navegador.";
+        if (err.code === 2) msg = "Sinal de GPS indisponível.";
+        if (err.code === 3) msg = "Tempo esgotado ao buscar sinal.";
+        alert(msg);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
   };
 
@@ -572,41 +605,93 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
     try {
       const finalLocal = formData.local === "NOVO" ? formData.customLocal : formData.local;
       const finalEquip = formData.equipamento === "NOVO" ? formData.customEquipamento : formData.equipamento;
       
-      let data: any = { "Tag": formData.tag, "Local": finalLocal };
+      // Conforme solicitado: Priorizar o nome do Equipamento como Tag caso o campo esteja vazio
+      const finalTag = formData.tag || finalEquip;
+      
+      if (!finalTag) {
+        alert("Por favor, informe a Tag ou selecione um Equipamento.");
+        setLoading(false);
+        return;
+      }
+
+      let data: any = { "Tag": finalTag, "Local": finalLocal };
+      
       if (groupKey === 'painel') {
           data = { ...data, "Switch1": formData.switch1, "Switch2": formData.switch2, "Switch3": formData.switch3, "Equipamento": finalEquip };
-      } else { data = { ...data, "IP / Identificador": formData.ip }; }
+      } else { 
+          data = { ...data, "IP / Identificador": formData.ip }; 
+      }
       
-      if (location) {
+      // Registro explícito das coordenadas se houver localização capturada
+      if (location && location.lat && location.lng) {
         data["Geolocalização"] = `${location.lat.toFixed(7)}, ${location.lng.toFixed(7)}`;
         data["Link Maps"] = `https://maps.google.com/?q=${location.lat},${location.lng}`;
       }
       
-      await addDoc(collection(db, groupKey), { content: `Item: ${formData.tag}`, data, userId: user.uid, userEmail: user.email, createdAt: serverTimestamp() });
+      await addDoc(collection(db, groupKey), { 
+        content: `Item: ${finalTag}`, 
+        data, 
+        userId: user.uid, 
+        userEmail: user.email, 
+        createdAt: serverTimestamp() 
+      });
+      
       setIsModalOpen(false);
       setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '' });
       setLocation(null);
-    } catch (e) { alert('Erro ao salvar'); } finally { setLoading(false); }
+    } catch (e) { 
+      console.error(e);
+      alert('Erro ao salvar no banco de dados.'); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   return (
     <div className="space-y-10 pb-20">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="flex items-center gap-6">
           <button onClick={onBack} className="p-4 bg-slate-800 rounded-2xl text-slate-400 hover:text-white transition-all"><ArrowLeft className="w-6 h-6" /></button>
           <h2 className="text-3xl sm:text-5xl font-black uppercase tracking-tighter">{config.label}</h2>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className={`px-8 py-4 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[11px] tracking-widest flex items-center gap-3 shadow-xl active:scale-95 transition-all`}>
-          <Plus className="w-5 h-5" /> Novo Registro
-        </button>
+        
+        <div className="flex flex-col sm:flex-row gap-4 flex-1 max-w-2xl">
+          <div className="relative flex-1 group">
+             <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+             <input 
+               type="text" 
+               placeholder={`Buscar em ${config.label}...`}
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+               className="w-full pl-14 pr-5 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white font-black uppercase placeholder-slate-600 focus:border-blue-500 outline-none transition-all shadow-xl" 
+             />
+             {searchTerm && (
+               <button onClick={() => setSearchTerm('')} className="absolute right-5 top-1/2 -translate-y-1/2 p-1.5 bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-all">
+                 <X className="w-4 h-4"/>
+               </button>
+             )}
+          </div>
+          
+          <button onClick={() => setIsModalOpen(true)} className={`px-8 py-4 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[11px] tracking-widest flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all`}>
+            <Plus className="w-5 h-5" /> Novo Registro
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {items.map(item => <ItemCard key={item.id} item={item} onSelect={() => onSelectItem(item)} searchHighlight="" />)}
+        {filteredItems.length > 0 ? (
+          filteredItems.map(item => <ItemCard key={item.id} item={item} onSelect={() => onSelectItem(item)} searchHighlight={searchTerm} />)
+        ) : (
+          <div className="col-span-full py-20 text-center flex flex-col items-center gap-4 bg-slate-800/20 rounded-[3rem] border border-dashed border-slate-700">
+            <Search className="w-12 h-12 text-slate-600 opacity-20" />
+            <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Nenhum resultado encontrado nesta categoria</p>
+          </div>
+        )}
       </div>
 
       {isModalOpen && (
@@ -622,25 +707,37 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                   <div className="flex flex-col gap-2">
                     <button type="button" onClick={handleCapture} disabled={isCapturing} className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase border tracking-widest flex items-center justify-center gap-3 transition-all ${location ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-slate-700 text-blue-400 border-slate-600'}`}>
                       {isCapturing ? <Loader2 className="w-5 h-5 animate-spin"/> : (location ? <CheckCircle className="w-5 h-5"/> : <Crosshair className="w-5 h-5"/>)} 
-                      {isCapturing ? "Aguardando GPS..." : (location ? "GPS Capturado" : "Capturar Localização")}
+                      {isCapturing ? "Aguardando GPS..." : (location ? "Localização Fixada" : "Capturar Localização")}
                     </button>
-                    {location && (
+                    {location && !isCapturing && (
                       <button type="button" onClick={handleRemoveLocation} className="text-[9px] font-black uppercase text-red-500/60 hover:text-red-500 text-center">Remover GPS</button>
                     )}
                   </div>
 
-                  {location && (
-                    <div className="h-48 rounded-2xl overflow-hidden border border-slate-700 relative shadow-inner animate-slideUp">
-                       <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag || "Novo Ativo"} />
-                       <div className="absolute bottom-3 left-3 px-3 py-1 bg-slate-900/80 backdrop-blur rounded-lg border border-white/5 text-[8px] font-mono text-blue-300">
-                         {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                  <div className="h-48 rounded-2xl overflow-hidden border border-slate-700 relative shadow-inner animate-slideUp flex items-center justify-center bg-slate-900/50">
+                    {isCapturing ? (
+                       <div className="flex flex-col items-center gap-2">
+                         <Crosshair className="w-8 h-8 text-blue-500 animate-spin opacity-50" />
+                         <span className="text-[8px] font-black uppercase text-blue-500/50 tracking-widest">Buscando Sinal...</span>
                        </div>
-                    </div>
-                  )}
+                    ) : location ? (
+                       <>
+                         <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag || formData.equipamento || "Novo Ativo"} />
+                         <div className="absolute bottom-3 left-3 px-3 py-1 bg-slate-900/80 backdrop-blur rounded-lg border border-white/5 text-[8px] font-mono text-blue-300">
+                           {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                         </div>
+                       </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 opacity-20">
+                        <MapPinOff className="w-10 h-10 text-slate-400" />
+                        <span className="text-[8px] font-black uppercase text-slate-400">Sem Coordenadas</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="space-y-3">
-                  <input type="text" placeholder="Tag do Ativo" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white font-black uppercase focus:border-blue-500 outline-none transition-all" />
+                  <input type="text" placeholder="Tag do Ativo (Opcional se escolher Equipamento)" value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white font-black uppercase focus:border-blue-500 outline-none transition-all" />
                   
                   {groupKey === 'painel' ? (
                      <>
