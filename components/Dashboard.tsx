@@ -17,7 +17,7 @@ import {
   LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, 
   MapPin, Loader2, X, Globe, Trash2, Crosshair, 
   Server, CheckCircle, Database, Clock, Navigation2, Activity, Filter,
-  MapPinOff, Navigation, ZoomIn, ZoomOut, Layers
+  MapPinOff, Navigation, ZoomIn, ZoomOut, Layers, ExternalLink
 } from 'lucide-react';
 
 declare const L: any;
@@ -105,7 +105,7 @@ const removeEmptyKeys = (data: Record<string, any>) => {
   return cleaned;
 };
 
-const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ lat, lng, tag }) => {
+const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string, height?: string, className?: string }> = ({ lat, lng, tag, height = "h-64", className = "" }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
 
@@ -137,7 +137,13 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
     return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
   }, [lat, lng, tag]);
 
-  return <div ref={mapRef} className="w-full h-64 rounded-2xl border-2 border-slate-700/50 overflow-hidden mt-4 shadow-2xl relative z-10" />;
+  return (
+    <div className={`relative group/map overflow-hidden rounded-2xl border border-slate-700/50 shadow-2xl ${className}`}>
+      <div ref={mapRef} className={`w-full ${height} relative z-0`} />
+      <div className="absolute inset-0 pointer-events-none border-[1px] border-white/5 z-10 rounded-2xl"></div>
+      <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02))] bg-[length:100%_4px,4px_100%] z-20 opacity-20"></div>
+    </div>
+  );
 };
 
 const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSelectItem: (item: GroupItem) => void }> = ({ items, onClose, onSelectItem }) => {
@@ -191,7 +197,6 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
   useEffect(() => {
     if (!mapInstance.current || !layerGroupRef.current) return;
     
-    // Atualizar Marcador de Usuário
     if (userPos) {
       if (!userMarkerRef.current) {
         accuracyCircleRef.current = L.circle(userPos, { radius: accuracy || 0, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15, weight: 1 }).addTo(mapInstance.current);
@@ -261,7 +266,6 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
   return (
     <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-sm animate-fadeIn">
       <div className="bg-slate-900 w-full h-[100vh] sm:h-[90vh] sm:max-w-6xl sm:rounded-[3rem] overflow-hidden flex flex-col border border-slate-700 shadow-[0_0_80px_rgba(0,0,0,0.8)]">
-        {/* Header Profissional */}
         <div className="p-5 sm:p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/90 backdrop-blur-xl relative z-20">
           <div className="flex items-center gap-4">
              <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl ring-1 ring-blue-500/20"><Globe className="w-6 h-6" /></div>
@@ -273,18 +277,13 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
           <button onClick={onClose} className="p-3 bg-slate-700 hover:bg-red-500/20 hover:text-red-400 rounded-2xl text-slate-400 transition-all active:scale-90"><X className="w-6 h-6" /></button>
         </div>
 
-        {/* Container do Mapa com Overlay de Controles */}
         <div className="flex-1 relative bg-slate-950">
             <div ref={mapRef} className="absolute inset-0 z-0" />
-            
-            {/* Controles Flutuantes Estilizados */}
             <div className="absolute right-6 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
                 <button onClick={handleZoomIn} className="p-4 bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl hover:bg-slate-700 transition-all active:scale-90"><ZoomIn size={24} /></button>
                 <button onClick={handleZoomOut} className="p-4 bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl hover:bg-slate-700 transition-all active:scale-90"><ZoomOut size={24} /></button>
                 <button onClick={handleRecenter} className="p-4 bg-blue-600 border border-white/20 rounded-2xl text-white shadow-2xl hover:bg-blue-500 transition-all active:scale-90"><Crosshair size={24} /></button>
             </div>
-
-            {/* Status do GPS */}
             <div className="absolute bottom-8 left-8 z-10">
                 <div className="px-5 py-3 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/5 flex items-center gap-4 shadow-2xl">
                     <div className={`w-3 h-3 rounded-full ${userPos ? 'bg-emerald-500 shadow-[0_0_15px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
@@ -293,14 +292,6 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
                         {accuracy && <span className="text-[8px] font-bold text-slate-500 uppercase mt-1">Precisão: {accuracy.toFixed(1)}m</span>}
                     </div>
                 </div>
-            </div>
-
-            {/* Legenda de Grupos */}
-            <div className="absolute top-6 left-6 z-10 hidden sm:flex flex-col gap-2 p-4 bg-slate-900/60 backdrop-blur-md rounded-2xl border border-white/5">
-                <div className="flex items-center gap-2 text-[8px] font-black text-white uppercase"><div className="w-2 h-2 rounded-full bg-blue-500"></div> CFTV</div>
-                <div className="flex items-center gap-2 text-[8px] font-black text-white uppercase"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> Telecom</div>
-                <div className="flex items-center gap-2 text-[8px] font-black text-white uppercase"><div className="w-2 h-2 rounded-full bg-orange-500"></div> Painéis</div>
-                <div className="flex items-center gap-2 text-[8px] font-black text-white uppercase"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Embarcados</div>
             </div>
         </div>
       </div>
@@ -348,76 +339,97 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   };
 
   return (
-      <div className="bg-slate-900 min-h-screen sm:min-h-[500px] sm:rounded-[2.5rem] border-x sm:border border-slate-700 shadow-2xl overflow-hidden flex flex-col animate-slideUp">
-          <div className={`p-5 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-20`}>
+      <div className="bg-slate-900 min-h-screen sm:min-h-[600px] sm:rounded-[2.5rem] border-x sm:border border-slate-700 shadow-2xl overflow-hidden flex flex-col animate-slideUp">
+          <div className={`p-5 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-30 shadow-xl`}>
               <div className="flex items-center gap-4">
-                  <button onClick={onClose} className="p-2 bg-white/20 rounded-xl"><ArrowLeft className="w-5 h-5" /></button>
-                  <h2 className="text-xl font-black uppercase truncate">{isEditing ? "Edição" : (cleanTagName(editData["Tag"]) || "Detalhes")}</h2>
+                  <button onClick={onClose} className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-all"><ArrowLeft className="w-5 h-5" /></button>
+                  <h2 className="text-xl font-black uppercase truncate tracking-tight">{isEditing ? "Edição de Ativo" : (cleanTagName(editData["Tag"]) || "Detalhes do Ativo")}</h2>
               </div>
               <div className="flex gap-2">
                  {!isEditing && <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-white/20 rounded-lg text-xs font-black uppercase transition-all hover:bg-white/30">Editar</button>}
                  <button onClick={() => confirm("Remover?") && onDelete(item.id)} className="p-2 bg-red-500/20 text-red-400 rounded-lg transition-all hover:bg-red-500/40"><Trash2 className="w-5 h-5" /></button>
               </div>
           </div>
-          <div className="p-6 sm:p-10 space-y-8 flex-1 overflow-y-auto pb-24">
+
+          <div className="flex-1 overflow-y-auto pb-32">
               {showGPSFeature && (
-                <div className="grid grid-cols-1 gap-6">
-                  <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-inner relative overflow-hidden">
-                      <div className="flex items-center justify-between gap-4 mb-4 relative z-10">
+                <div className="relative w-full h-[40vh] sm:h-[450px] bg-slate-950">
+                  {location ? (
+                    <MiniMapPreview 
+                      lat={location.lat} 
+                      lng={location.lng} 
+                      tag={editData["Tag"]} 
+                      height="h-full" 
+                      className="rounded-none border-none shadow-none"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-600 gap-4 bg-slate-900/50">
+                      <MapPinOff size={64} className="opacity-20" />
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em]">Nenhuma localização sincronizada</p>
+                    </div>
+                  )}
+
+                  <div className="absolute top-6 left-6 right-6 z-20 flex justify-between items-start pointer-events-none">
+                    <div className="p-4 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl pointer-events-auto">
                         <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl"><MapPin className="w-6 h-6" /></div>
+                            <div className={`p-3 rounded-xl ${location ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-700 text-slate-500'}`}><MapPin className="w-6 h-6" /></div>
                             <div>
-                               <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Localização GPS</h4>
-                               <p className="text-sm text-slate-200 font-mono font-bold tracking-tight">{location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : "Não registrado"}</p>
+                               <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Status do Satélite</h4>
+                               <p className="text-sm text-slate-200 font-mono font-bold tracking-tight">{location ? `${location.lat.toFixed(7)}, ${location.lng.toFixed(7)}` : "COORD_NULL"}</p>
                             </div>
                         </div>
-                        <div className="flex gap-2">
-                            {!isEditing && location && (
-                                <button onClick={handleDirections} className="p-3 bg-emerald-500 text-white rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2">
-                                    <Navigation className="w-4 h-4" />
-                                    <span className="text-[10px] font-black uppercase hidden sm:inline">Como Chegar</span>
-                                </button>
-                            )}
-                            {isEditing && location && (
-                                <button onClick={() => setLocation(null)} className="p-3 bg-red-500/10 text-red-400 rounded-xl border border-red-500/20 transition-all hover:bg-red-500/20" title="Remover Localização">
-                                    <MapPinOff className="w-5 h-5" />
-                                </button>
-                            )}
-                        </div>
-                      </div>
-                      
-                      {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={editData["Tag"]} />}
-                      
-                      {isEditing && (
-                          <button onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat:p.coords.latitude, lng:p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy:true}) }} className="w-full mt-4 py-5 bg-blue-600 text-white text-[11px] font-black uppercase rounded-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
-                            {gettingLocation ? <Loader2 className="animate-spin w-5 h-5"/> : <Crosshair className="w-5 h-5"/>}
-                            {gettingLocation ? "Obtendo Satélite..." : "Capturar Minha Localização"}
-                          </button>
-                      )}
+                    </div>
+                    
+                    <div className="flex flex-col gap-2 pointer-events-auto">
+                        {!isEditing && location && (
+                            <button onClick={handleDirections} className="p-4 bg-emerald-500 text-white rounded-2xl shadow-2xl active:scale-95 transition-all flex items-center gap-3 hover:bg-emerald-600">
+                                <Navigation className="w-5 h-5" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Traçar Rota</span>
+                            </button>
+                        )}
+                        {isEditing && (
+                             <button onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat:p.coords.latitude, lng:p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy:true}) }} className="p-4 bg-blue-600 text-white rounded-2xl shadow-2xl active:scale-95 transition-all flex items-center gap-3 hover:bg-blue-700">
+                                {gettingLocation ? <Loader2 className="animate-spin w-5 h-5"/> : <Crosshair className="w-5 h-5"/>}
+                                <span className="text-[10px] font-black uppercase tracking-widest">{gettingLocation ? "Escaneando..." : "Sincronizar"}</span>
+                             </button>
+                        )}
+                        {isEditing && location && (
+                            <button onClick={() => setLocation(null)} className="p-4 bg-red-500/20 text-red-400 rounded-2xl border border-red-500/20 backdrop-blur-md transition-all hover:bg-red-500/40" title="Remover Localização">
+                                <MapPinOff className="w-5 h-5" />
+                            </button>
+                        )}
+                    </div>
                   </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-900 to-transparent z-10 pointer-events-none"></div>
                 </div>
               )}
-              <div className="space-y-4">
-                 <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em]">Ficha Técnica</h4>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {Object.entries(editData).filter(([k]) => isKeyVisible(k)).map(([key, value]) => (
-                        <div key={key} className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700/50 shadow-sm transition-all hover:bg-slate-800">
-                          <h5 className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-2">{key}</h5>
-                          {isEditing ? (
-                            <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-blue-500 transition-all" />
-                          ) : (
-                            <p className="text-white font-black uppercase tracking-tight text-base">{String(value)}</p>
-                          )}
-                        </div>
-                    ))}
+
+              <div className="p-6 sm:p-10 space-y-10 relative z-20 -mt-10 sm:-mt-16">
+                 <div className="bg-slate-800/80 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-slate-700/50 shadow-2xl space-y-8">
+                    <h4 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.4em] flex items-center gap-3">
+                        <Database className="w-4 h-4" /> Especificações Técnicas
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {Object.entries(editData).filter(([k]) => isKeyVisible(k)).map(([key, value]) => (
+                            <div key={key} className="bg-slate-900/50 p-6 rounded-2xl border border-white/5 group-hover:border-blue-500/30 transition-all">
+                              <h5 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3">{key}</h5>
+                              {isEditing ? (
+                                <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-blue-500 transition-all shadow-inner" />
+                              ) : (
+                                <p className="text-white font-black uppercase tracking-tight text-lg break-all">{String(value)}</p>
+                              )}
+                            </div>
+                        ))}
+                    </div>
                  </div>
               </div>
           </div>
+
           {isEditing && (
-              <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-900/90 backdrop-blur-xl border-t border-slate-800 z-30">
-                <button onClick={handleSave} disabled={isSaving} className={`max-w-7xl mx-auto w-full py-5 rounded-2xl text-white font-black uppercase tracking-widest ${config.color} shadow-2xl flex justify-center items-center gap-3 transition-all active:scale-95`}>
-                    {isSaving ? <Loader2 className="animate-spin w-5 h-5"/> : <Save className="w-5 h-5"/>}
-                    {isSaving ? "Gravando..." : "Salvar Alterações"}
+              <div className="fixed bottom-0 left-0 right-0 p-8 bg-slate-900/90 backdrop-blur-3xl border-t border-slate-800 z-40">
+                <button onClick={handleSave} disabled={isSaving} className={`max-w-4xl mx-auto w-full py-6 rounded-2xl text-white font-black uppercase tracking-[0.2em] ${config.color} shadow-2xl flex justify-center items-center gap-4 transition-all active:scale-95 hover:brightness-110`}>
+                    {isSaving ? <Loader2 className="animate-spin w-6 h-6"/> : <Save className="w-6 h-6"/>}
+                    {isSaving ? "Gravando Dados..." : "Confirmar Alterações"}
                 </button>
               </div>
           )}
@@ -440,46 +452,63 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; s
   };
 
   return (
-    <div onClick={onSelect} className="relative flex flex-col bg-slate-800/40 backdrop-blur-xl rounded-3xl border border-slate-700/60 p-5 shadow-xl hover:shadow-blue-500/10 transition-all cursor-pointer active:scale-95 group overflow-hidden">
-      <div className="absolute top-0 right-0 p-12 bg-blue-500/5 rounded-full blur-3xl -mr-6 -mt-6"></div>
+    <div onClick={onSelect} className="relative flex flex-col bg-slate-800/40 backdrop-blur-xl rounded-3xl border border-slate-700/60 transition-all cursor-pointer active:scale-95 group overflow-hidden hover:bg-slate-800/60 hover:border-blue-500/30 shadow-xl">
       
-      <div className="flex flex-col gap-4 relative z-10">
+      {config.id === 'painel' && hasGeo && (
+        <div className="w-full h-40 relative overflow-hidden bg-slate-950 border-b border-white/5">
+           <MiniMapPreview 
+            lat={parseFloat(data["Geolocalização"].split(',')[0])} 
+            lng={parseFloat(data["Geolocalização"].split(',')[1])} 
+            tag={tagValue} 
+            height="h-full" 
+            className="rounded-none border-none opacity-80 group-hover:opacity-100 transition-opacity" 
+           />
+           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent pointer-events-none"></div>
+           <div className="absolute bottom-3 right-3 z-10">
+                <div className="p-2 bg-emerald-500 text-white rounded-lg shadow-2xl">
+                    <Navigation2 className="w-4 h-4" />
+                </div>
+           </div>
+        </div>
+      )}
+
+      <div className="p-6 space-y-4">
         <div className="flex items-center justify-between gap-3">
             <h3 className="text-base font-black text-white truncate tracking-tighter uppercase leading-tight">
                 <HighlightedText text={tagValue} highlight={searchHighlight} />
             </h3>
-            {hasGeo && (
-                <button onClick={handleDirections} className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500 text-[9px] hover:text-white transition-all active:scale-90" title="Como Chegar">
+            {hasGeo && config.id !== 'painel' && (
+                <button onClick={handleDirections} className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl hover:bg-emerald-500 hover:text-white transition-all active:scale-90 shadow-sm" title="Como Chegar">
                     <Navigation2 className="w-4 h-4" />
                 </button>
             )}
         </div>
 
-        <div className="flex items-center gap-2 text-slate-400 bg-slate-900/60 px-3 py-2.5 rounded-2xl border border-white/5 shadow-inner">
-          <MapPin className={`w-3.5 h-3.5 ${hasGeo ? 'text-emerald-500' : 'text-slate-600'}`} />
-          <span className="text-[10px] font-black truncate uppercase tracking-tight opacity-90">{localValue}</span>
+        <div className="flex items-center gap-3 text-slate-400 bg-slate-900/60 px-4 py-3 rounded-2xl border border-white/5 shadow-inner">
+          <MapPin className={`w-4 h-4 ${hasGeo ? 'text-emerald-500' : 'text-slate-600'}`} />
+          <span className="text-[10px] font-black truncate uppercase tracking-widest opacity-90">{localValue}</span>
         </div>
 
         {config.id === 'painel' && (
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {['Switch1', 'Switch2', 'Switch3'].map((swKey, idx) => (
               data[swKey] && (
-                <div key={swKey} className="flex items-center gap-2 px-3 py-2 bg-slate-900/40 border border-white/5 rounded-xl transition-all group-hover:bg-slate-900/60">
-                  <Server className="w-3 h-3 text-blue-500" />
-                  <span className="text-[9px] font-black text-slate-300 font-mono uppercase truncate tracking-tight">SW-0{idx + 1}: {data[swKey]}</span>
+                <div key={swKey} className="flex items-center gap-3 px-3 py-2 bg-slate-900/40 border border-white/5 rounded-xl">
+                  <Server className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="text-[9px] font-black text-slate-300 font-mono uppercase truncate tracking-tight">PORT-0{idx + 1}: {data[swKey]}</span>
                 </div>
               )
             ))}
           </div>
         )}
 
-        <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-3 border-t border-white/5 uppercase tracking-[0.1em]">
+        <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-4 border-t border-white/5 uppercase tracking-[0.2em]">
            <div className="flex items-center gap-2">
              <div className={`w-2 h-2 rounded-full ${hasGeo ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]' : 'bg-slate-700'}`}></div>
              {config.label}
            </div>
-           <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-               Detalhes <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+           <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+               DETALHES <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
            </div>
         </div>
       </div>
@@ -550,81 +579,81 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
 
   return (
     <div className="pb-24 animate-fadeIn">
-      <div className="p-8 sm:p-12 mb-8 bg-slate-800/60 rounded-[3rem] border border-slate-700 flex flex-col gap-6 shadow-2xl relative overflow-hidden">
+      <div className="p-8 sm:p-14 mb-10 bg-slate-800/60 rounded-[3.5rem] border border-slate-700 flex flex-col gap-6 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none"></div>
         <div className="flex items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-6">
-            <button onClick={onBack} className="p-4 bg-slate-700 rounded-3xl text-slate-300 hover:bg-slate-600 transition-all active:scale-90 shadow-lg"><ArrowLeft size={28} /></button>
+            <button onClick={onBack} className="p-5 bg-slate-700 rounded-[1.75rem] text-slate-300 hover:bg-slate-600 transition-all active:scale-90 shadow-lg"><ArrowLeft size={32} /></button>
             <div>
-              <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tighter uppercase leading-none">{config.label}</h2>
-              <span className="text-[10px] uppercase font-black text-slate-500 mt-2 block tracking-widest opacity-80">Inventário de A a Z</span>
+              <h2 className="text-4xl sm:text-6xl font-black text-white tracking-tighter uppercase leading-none">{config.label}</h2>
+              <span className="text-[11px] uppercase font-black text-slate-500 mt-3 block tracking-[0.4em] opacity-80">Infraestrutura Operacional</span>
             </div>
           </div>
-          <button onClick={() => setIsModalOpen(true)} className={`hidden sm:flex px-8 py-5 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[11px] items-center gap-3 shadow-2xl transition-all active:scale-95`}>
-            <Plus size={20} /> Novo Ativo
+          <button onClick={() => setIsModalOpen(true)} className={`hidden lg:flex px-10 py-5 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[12px] tracking-widest items-center gap-3 shadow-2xl transition-all active:scale-95 hover:brightness-110`}>
+            <Plus size={24} /> Novo Ativo
           </button>
         </div>
       </div>
 
-      <div className="relative mb-10 group max-w-4xl mx-auto">
-        <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-        <input type="text" placeholder={`Buscar por tag, IP ou local...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-16 pr-8 py-6 bg-slate-800/80 border border-slate-700 rounded-[2.5rem] text-white text-lg outline-none font-black placeholder-slate-600 shadow-2xl focus:border-blue-500 transition-all backdrop-blur-md" />
+      <div className="relative mb-12 group max-w-5xl mx-auto">
+        <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-7 w-7 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+        <input type="text" placeholder={`Filtrar por tag, identificador ou localização...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-16 pr-10 py-7 bg-slate-800/80 border border-slate-700 rounded-[3rem] text-white text-xl outline-none font-black placeholder-slate-600 shadow-2xl focus:border-blue-500 transition-all backdrop-blur-md" />
       </div>
 
-      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
         {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} searchHighlight={searchTerm} />)}
       </div>
 
-      <button onClick={() => setIsModalOpen(true)} className={`fixed bottom-10 right-10 w-20 h-20 rounded-[2rem] flex items-center justify-center text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-40 bg-gradient-to-r ${config.gradient} transition-all border-2 border-white/20 active:scale-90`}><Plus size={40} /></button>
+      <button onClick={() => setIsModalOpen(true)} className={`fixed bottom-12 right-12 w-24 h-24 rounded-[2.5rem] flex items-center justify-center text-white shadow-[0_30px_60px_rgba(0,0,0,0.6)] z-50 bg-gradient-to-r ${config.gradient} transition-all border-2 border-white/20 active:scale-90 hover:scale-105`}><Plus size={48} /></button>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-black/95 backdrop-blur-md p-0 sm:p-4 animate-fadeIn">
-          <div className="bg-slate-800 w-full h-[95vh] sm:h-auto sm:max-w-md sm:rounded-[3rem] border-t sm:border border-slate-600 overflow-y-auto shadow-2xl">
-            <div className={`p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10 shadow-xl`}>
-              <h3 className="text-xl font-black uppercase tracking-tight">Novo Cadastro</h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-3 bg-white/10 rounded-2xl hover:bg-white/20 transition-all"><X size={24} /></button>
+          <div className="bg-slate-800 w-full h-[95vh] sm:h-auto sm:max-w-xl sm:rounded-[3.5rem] border-t sm:border border-slate-600 overflow-y-auto shadow-2xl">
+            <div className={`p-8 sm:p-10 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10 shadow-2xl`}>
+              <h3 className="text-2xl font-black uppercase tracking-tight">Registro de Ativo</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-4 bg-white/10 rounded-2xl hover:bg-white/20 transition-all"><X size={28} /></button>
             </div>
-            <form onSubmit={handleSave} className="p-8 space-y-6 pb-12">
+            <form onSubmit={handleSave} className="p-8 sm:p-10 space-y-8 pb-16">
               {showGPSInput && (
-                <div className="bg-slate-900/40 p-1 rounded-3xl border border-white/5">
-                  <button type="button" onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat: p.coords.latitude, lng: p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy: true}) }} className="w-full py-5 bg-slate-700 border border-slate-600 rounded-2xl text-[10px] font-black uppercase text-blue-400 flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg">
-                    {gettingLocation ? <Loader2 className="animate-spin" size={20}/> : location ? <CheckCircle className="text-emerald-500" size={20}/> : <Crosshair size={20}/>}
-                    {location ? "SATÉLITE SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
+                <div className="space-y-4">
+                  <button type="button" onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat: p.coords.latitude, lng: p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy: true}) }} className="w-full py-6 bg-slate-700 border border-slate-600 rounded-3xl text-[11px] font-black uppercase text-blue-400 flex items-center justify-center gap-4 active:scale-95 transition-all shadow-xl group/btn">
+                    {gettingLocation ? <Loader2 className="animate-spin" size={24}/> : location ? <CheckCircle className="text-emerald-500" size={24}/> : <Crosshair size={24}/>}
+                    {location ? "SATÉLITE SINCRONIZADO" : "CAPTURAR COORDENADAS GPS"}
                   </button>
-                  {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
+                  {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} height="h-48" />}
                 </div>
               )}
-              <div className="space-y-4">
-                <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest">Tag Identificadora</label>
-                    <input type="text" placeholder="ex: vc-1080ks-13.06" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-6 py-5 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black outline-none focus:border-blue-500 transition-all" />
+              <div className="space-y-6">
+                <div className="space-y-3">
+                    <label className="text-[11px] font-black text-slate-500 uppercase ml-4 tracking-[0.3em]">Tag de Identificação</label>
+                    <input type="text" placeholder="Ex: vc-1080ks-13.06" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-7 py-5 bg-slate-700/50 border border-slate-600 rounded-3xl text-white text-lg font-black outline-none focus:border-blue-500 transition-all shadow-inner" />
                 </div>
                 
                 {groupKey === 'painel' ? (
-                   <>
+                   <div className="space-y-4">
                      <div className="grid grid-cols-1 gap-3">
-                        {['switch1', 'switch2', 'switch3'].map((sw, i) => <input key={sw} type="text" placeholder={`Endereço Porta Switch 0${i+1}`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-mono outline-none focus:border-blue-500 transition-all" />)}
+                        {['switch1', 'switch2', 'switch3'].map((sw, i) => <input key={sw} type="text" placeholder={`Porta de Conexão Switch 0${i+1}`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-6 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-mono outline-none focus:border-blue-500 transition-all shadow-inner" />)}
                      </div>
-                     <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-5 py-5 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase outline-none focus:border-blue-500 transition-all">
-                        <option value="">Selecione Local...</option>
+                     <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-6 py-5 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer">
+                        <option value="">Selecione Localização Técnica...</option>
                         {Object.keys(SYSTEM_DATA).map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                        <option value="NOVO">+ NOVO LOCAL PERSONALIZADO</option>
+                        <option value="NOVO">+ NOVO LOCAL OPERACIONAL</option>
                      </select>
-                     <select disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-5 py-5 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase outline-none focus:border-blue-500 transition-all disabled:opacity-30">
-                        <option value="">Selecione Ativo...</option>
+                     <select disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-6 py-5 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase outline-none focus:border-blue-500 transition-all disabled:opacity-30 appearance-none cursor-pointer">
+                        <option value="">Selecione Ativo Relacionado...</option>
                         {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                         <option value="NOVO">+ NOVO ATIVO PERSONALIZADO</option>
                      </select>
-                   </>
+                   </div>
                 ) : (
-                   <>
-                     <input type="text" placeholder="Localização Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-6 py-5 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase outline-none focus:border-blue-500 transition-all" />
-                     <input type="text" placeholder="IP / Endereço / Identificador" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-6 py-5 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-mono outline-none focus:border-blue-500 transition-all" />
-                   </>
+                   <div className="space-y-4">
+                     <input type="text" placeholder="Localização Geográfica/Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-7 py-5 bg-slate-700/50 border border-slate-600 rounded-3xl text-white text-sm font-black uppercase outline-none focus:border-blue-500 transition-all" />
+                     <input type="text" placeholder="Endereço IP / Hostname / ID" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-7 py-5 bg-slate-700/50 border border-slate-600 rounded-3xl text-white text-sm font-mono outline-none focus:border-blue-500 transition-all" />
+                   </div>
                 )}
               </div>
-              <button type="submit" disabled={loading} className={`w-full py-7 rounded-3xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[12px] tracking-widest shadow-2xl transition-all active:scale-95 disabled:opacity-50`}>
-                 {loading ? <Loader2 className="animate-spin" size={24}/> : "Finalizar Cadastro"}
+              <button type="submit" disabled={loading} className={`w-full py-7 rounded-[2.5rem] text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[14px] tracking-[0.2em] shadow-2xl transition-all active:scale-95 disabled:opacity-50 hover:brightness-110`}>
+                 {loading ? <Loader2 className="animate-spin" size={28}/> : "FINALIZAR CADASTRO"}
               </button>
             </form>
           </div>
@@ -680,52 +709,52 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-900 p-6 sm:p-16 text-white relative flex flex-col">
+    <div className="min-h-screen bg-slate-900 p-6 sm:p-20 text-white relative flex flex-col">
       <div className="absolute top-[-15%] left-[-10%] w-[60%] h-[60%] bg-blue-600/10 blur-[150px] rounded-full pointer-events-none"></div>
       
       {isMapModalOpen && <GlobalMapModal items={allData} onClose={() => setIsMapModalOpen(false)} onSelectItem={(item) => { setItemFromSearch(item); setCurrentView(item.groupType as GroupType); }} />}
       
-      <div className="max-w-6xl mx-auto w-full space-y-12 animate-fadeIn relative z-10 flex-1">
-        <header className="flex flex-col gap-10">
+      <div className="max-w-7xl mx-auto w-full space-y-16 animate-fadeIn relative z-10 flex-1">
+        <header className="flex flex-col gap-12">
           <div className="flex justify-between items-center">
-            <div className="inline-flex items-center gap-3 px-5 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-[1.25rem] text-[9px] font-black uppercase tracking-[0.4em] text-blue-400 shadow-lg">
-               TagFinder Enterprise v5.8 <Activity className="w-3.5 h-3.5 animate-pulse" />
+            <div className="inline-flex items-center gap-4 px-6 py-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.5em] text-blue-400 shadow-2xl">
+               TAGFINDER ENTERPRISE V6.0 <Activity className="w-4 h-4 animate-pulse" />
             </div>
-            <button onClick={() => signOut(auth)} className="p-4 bg-slate-800 border border-slate-700 rounded-2xl text-slate-500 hover:text-red-500 transition-all shadow-xl active:scale-90"><LogOut size={24} /></button>
+            <button onClick={() => signOut(auth)} className="p-5 bg-slate-800 border border-slate-700 rounded-3xl text-slate-500 hover:text-red-500 transition-all shadow-2xl active:scale-90"><LogOut size={28} /></button>
           </div>
           
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-10">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-12">
             <div>
-              <h1 className="text-4xl sm:text-7xl font-black tracking-tighter uppercase leading-none">Olá, <br/><span className="text-blue-500 drop-shadow-2xl">{user.email?.split('@')[0]}</span></h1>
-              <p className="text-slate-500 text-sm font-bold uppercase tracking-[0.2em] mt-6 opacity-70 italic">Gerenciamento Georreferenciado Inteligente de Ativos</p>
+              <h1 className="text-5xl sm:text-8xl font-black tracking-tighter uppercase leading-none">Status, <br/><span className="text-blue-500 drop-shadow-2xl">{user.email?.split('@')[0]}</span></h1>
+              <p className="text-slate-500 text-sm sm:text-lg font-bold uppercase tracking-[0.3em] mt-8 opacity-70 italic border-l-4 border-blue-500 pl-6">Monitoramento Georreferenciado e Gestão de Ativos Industriais</p>
             </div>
             
-            <button onClick={handleOpenGlobalMap} disabled={loadingMap} className="group bg-slate-800/80 p-8 sm:p-14 rounded-[4rem] border border-slate-700 shadow-2xl hover:border-blue-500/40 transition-all active:scale-[0.98] text-left relative overflow-hidden flex items-center gap-10">
-               <div className="absolute top-0 right-0 p-32 bg-blue-600/10 rounded-full blur-[100px] -mr-16 -mt-16"></div>
-               <div className="p-7 bg-blue-500/10 text-blue-400 rounded-[2.5rem] group-hover:scale-110 transition-all shadow-xl relative z-10 ring-8 ring-white/5">
-                  {loadingMap ? <Loader2 className="animate-spin" size={40}/> : <Globe size={40} />}
+            <button onClick={handleOpenGlobalMap} disabled={loadingMap} className="group bg-slate-800/80 p-10 sm:p-16 rounded-[4.5rem] border border-slate-700 shadow-2xl hover:border-blue-500/40 transition-all active:scale-[0.98] text-left relative overflow-hidden flex items-center gap-12">
+               <div className="absolute top-0 right-0 p-40 bg-blue-600/10 rounded-full blur-[120px] -mr-20 -mt-20"></div>
+               <div className="p-8 bg-blue-500/10 text-blue-400 rounded-[2.5rem] group-hover:scale-110 transition-all shadow-xl relative z-10 ring-[12px] ring-white/5">
+                  {loadingMap ? <Loader2 className="animate-spin" size={48}/> : <Globe size={48} />}
                </div>
                <div className="relative z-10">
-                  <h3 className="text-2xl sm:text-3xl font-black uppercase text-white leading-none tracking-tight">Mapa Satélite</h3>
-                  <p className="text-[10px] font-black text-slate-500 uppercase mt-3 tracking-widest">Visão Híbrida em Tempo Real</p>
+                  <h3 className="text-3xl sm:text-4xl font-black uppercase text-white leading-none tracking-tight">Painel Satélite</h3>
+                  <p className="text-[11px] font-black text-slate-500 uppercase mt-4 tracking-[0.4em]">Visão Estratégica Híbrida em Tempo Real</p>
                </div>
             </button>
           </div>
         </header>
 
-        <section className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-8 pb-24">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 pb-24">
             {Object.entries(groupsConfig).map(([key, group]) => (
-            <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-900/60 p-12 rounded-[3.5rem] border border-slate-800/80 flex flex-col items-start transition-all hover:bg-slate-800 hover:border-white/10 active:scale-95 shadow-[0_20px_40px_rgba(0,0,0,0.3)]">
-                <div className={`w-20 h-20 rounded-[1.75rem] ${group.lightColor} ${group.textColor} flex items-center justify-center mb-10 border border-white/5 transition-all group-hover:scale-110 shadow-2xl ring-4 ring-white/5`}><group.icon size={36} /></div>
-                <h2 className="text-2xl font-black tracking-tighter uppercase leading-none mb-4">{group.label}</h2>
-                <div className={`inline-flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.2em] ${group.textColor} opacity-60 group-hover:opacity-100 transition-opacity`}>Gerenciar <ArrowRight size={16} /></div>
+            <button key={key} onClick={() => setCurrentView(key as GroupType)} className="relative overflow-hidden group bg-slate-900/60 p-14 rounded-[4rem] border border-slate-800/80 flex flex-col items-start transition-all hover:bg-slate-800 hover:border-white/10 active:scale-95 shadow-[0_30px_60px_rgba(0,0,0,0.4)]">
+                <div className={`w-24 h-24 rounded-[2rem] ${group.lightColor} ${group.textColor} flex items-center justify-center mb-12 border border-white/5 transition-all group-hover:scale-110 shadow-2xl ring-8 ring-white/5`}><group.icon size={44} /></div>
+                <h2 className="text-3xl font-black tracking-tighter uppercase leading-none mb-5">{group.label}</h2>
+                <div className={`inline-flex items-center gap-4 text-[11px] font-black uppercase tracking-[0.3em] ${group.textColor} opacity-60 group-hover:opacity-100 transition-opacity`}>EXPLORAR <ArrowRight size={18} /></div>
             </button>
             ))}
         </section>
       </div>
 
-      <footer className="py-16 text-center border-t border-white/5 mt-auto">
-        <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.5em] opacity-40">TagFinder Pro Infrastructure &copy; 2024 • Inteligência Geográfica</p>
+      <footer className="py-20 text-center border-t border-white/5 mt-auto">
+        <p className="text-[11px] font-black text-slate-700 uppercase tracking-[0.6em] opacity-40">TagFinder Pro Infrastructure &copy; 2024 • Intelligence for Industrial Assets</p>
       </footer>
     </div>
   );
