@@ -15,7 +15,7 @@ import {
   getDocs 
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Crosshair, Server, CheckCircle, Database, Clock, Navigation2, Maximize, Locate, Activity, MapPinOff } from 'lucide-react';
+import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Crosshair, Server, CheckCircle, Database, Clock, Navigation2, Locate, Activity, MapPinOff, FileDown } from 'lucide-react';
 
 declare const L: any;
 
@@ -36,9 +36,19 @@ interface GroupItem {
 type GroupType = 'ctv' | 'telecom' | 'embarcados' | 'painel';
 type ViewState = 'home' | GroupType;
 
-// Usando Google Satellite para máximo realismo e disponibilidade
-const SATELLITE_URL = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
+// Definição de Camadas Profissionais
+const GOOGLE_HYBRID_URL = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
 const SATELLITE_ATTRIBUTION = '&copy; Google Maps';
+
+const SYSTEM_DATA: Record<string, string[]> = {
+  "SISTEMA 1": ["TR-1081KS-03 (BC)", "TR-1082KS-13 (BCC)", "BELTI EE-1080KS-04 (MBW)", "BM-1080KS-04", "SE-1081KS-17", "SE-1081KS-03", "SE-1081KS-74", "SE-1081KS-13", "SE-1082KS-95 -(DRIVE)"],
+  "SISTEMA 2": ["TR-1081KS-04", "TR-1081KS-52", "TR-1081KS-14 (bsm)", "TR-1081KS-05 (bsm)", "SE-1081KS-52", "SE-1081KS-04", "SE-1081KS-76", "BELTI EE-1080KS-02", "BM-1081KS-02", "SE-1081KS-50", "SE-1081KS-51", "SE-1081KS-56", "SE-1081KS-27", "SE-1081KS-97", "SE-1081KS-14", "SE-1081KS-18 (bsm)", "SE-1080KS-51 (bsm)"],
+  "SISTEMA 3": ["TR-1081KS-11", "TR-1081KS-01", "BM-1081KS-03", "BELTI EE-1081KS03 (MBW)", "SE-1081KS-01", "SE-1081KS-70", "SE-1081KS-15", "SE-1081KS-21", "SE-1081KS-11", "SE-1081KS-91"],
+  "SISTEMA 4": ["TR-1081KS-02", "TR-1081KS-12", "BM-1081KS-01", "BELTI EE-1081KS-01", "SE-1081KS-02", "SE-1081KS-72", "SE-1081KS-12", "SE-1081KS-23", "SE-1081KS-93"],
+  "5ª BRITAGEM": ["BM-1080KS-13", "BM-1080KS-12", "BM-1080KS-11", "TR-1080KS-81", "TR-1085KS-36", "TR-1080KS-83", "TR-1080KS-88", "TR-1080KS-87", "TR-1080KS-82", "TR-1080KS-85", "TR-1080KS-86", "TR-1080KS-80", "TR-1080KS-84"],
+  "CASA DE TRANSFERENCIA": ["TR-1082KS-01", "TR-1082KS-02", "TR-1082KS-03", "TR-1082KS-04", "TR-1082KS-05", "TR-1082KS-06", "TR-1080KS-37", "TR-1085KS-01", "TR-1085KS-04", "TR-1083KS-01", "TR-1084KS-01", "TR-1085KS-05", "SE-1084KS-01", "SE-1083KS-01", "SE-1082KS-02", "SE-1082KS-01", "SE-1085KS-23", "SE-1082KS-03", "SE-1082KS-04", "SE-6021KS-01", "SE-1085KS-22"],
+  "OVERLAND": ["TR-1083KS-03", "TR-1083KS-04", "SE-1084KS-22", "SE-1084KS-21", "TR-1084KS-02", "TR-1083KS-02", "EE-1084KS-01 (mts)", "EE-1083KS-01 (mts)", "SE-1083KS-02", "SE-1084KS-02"]
+};
 
 const groupsConfig = {
   ctv: { 
@@ -83,33 +93,36 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
         mapInstance.current.setView([lat, lng], 18);
         return;
     }
-    
+
     try {
       const map = L.map(mapRef.current, { 
         zoomControl: false, 
         attributionControl: false,
         dragging: false,
         scrollWheelZoom: false,
-        touchZoom: false,
-        doubleClickZoom: false
+        touchZoom: false
       }).setView([lat, lng], 18);
       
-      L.tileLayer(SATELLITE_URL, { attribution: SATELLITE_ATTRIBUTION }).addTo(map);
-
-      const marker = L.circleMarker([lat, lng], {
-        radius: 8, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 1
+      L.tileLayer(GOOGLE_HYBRID_URL, { 
+        attribution: SATELLITE_ATTRIBUTION,
+        maxZoom: 21,
+        maxNativeZoom: 19
       }).addTo(map);
-      
-      marker.bindTooltip(tag || "Alvo", { permanent: true, direction: 'top', className: 'tag-label' }).openTooltip();
+
+      L.circleMarker([lat, lng], {
+        radius: 6, fillColor: '#3b82f6', color: '#ffffff', weight: 2, opacity: 1, fillOpacity: 1
+      }).addTo(map);
+
       mapInstance.current = map;
       
-      setTimeout(() => map.invalidateSize(), 200);
+      // Força redimensionamento para evitar tiles cinzas no carregamento
+      setTimeout(() => map.invalidateSize(), 300);
     } catch (e) { console.error("MiniMap error:", e); }
 
     return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
   }, [lat, lng, tag]);
 
-  return <div ref={mapRef} className="w-full h-40 rounded-2xl border-2 border-slate-700 overflow-hidden mt-2 shadow-2xl relative z-0" />;
+  return <div ref={mapRef} className="w-full h-32 rounded-xl border border-slate-700 overflow-hidden mt-2 shadow-inner" />;
 };
 
 const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSelectItem: (item: GroupItem) => void }> = ({ items, onClose, onSelectItem }) => {
@@ -117,12 +130,14 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
   const mapInstance = useRef<any>(null);
   const userMarkerRef = useRef<any>(null);
   const layerGroupRef = useRef<any>(null);
-  const initialFitDone = useRef(false);
   const [userPos, setUserPos] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => setUserPos([pos.coords.latitude, pos.coords.longitude]),
+      (pos) => {
+        const newPos: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setUserPos(newPos);
+      },
       (err) => console.log("GPS erro:", err),
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
@@ -131,53 +146,50 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
 
   useEffect(() => {
     if (!mapRef.current || mapInstance.current || typeof L === 'undefined') return;
-    
     try {
-      const map = L.map(mapRef.current, { zoomControl: true, tap: true }).setView([-15.7801, -47.9292], 4);
-      L.tileLayer(SATELLITE_URL, { attribution: SATELLITE_ATTRIBUTION, maxZoom: 21 }).addTo(map);
+      const map = L.map(mapRef.current, {
+        zoomControl: true,
+        tap: true
+      }).setView([-15.7801, -47.9292], 4);
+      
+      // Camada Google Hybrid (Satélite + Labels)
+      L.tileLayer(GOOGLE_HYBRID_URL, { 
+        attribution: SATELLITE_ATTRIBUTION,
+        maxZoom: 21,
+        maxNativeZoom: 19
+      }).addTo(map);
+
       layerGroupRef.current = L.layerGroup().addTo(map);
       mapInstance.current = map;
       
-      setTimeout(() => {
-        map.invalidateSize();
-        if (initialFitDone.current) return;
-        const bounds = L.latLngBounds([]);
-        let hasBounds = false;
-        items.forEach(item => {
-          const geo = item.data?.["Geolocalização"];
-          if (geo) {
-            const parts = geo.split(',');
-            const la = parseFloat(parts[0]);
-            const ln = parseFloat(parts[1]);
-            if(!isNaN(la)) { bounds.extend([la, ln]); hasBounds = true; }
-          }
-        });
-        if(hasBounds) map.fitBounds(bounds, { padding: [50, 50] });
-        initialFitDone.current = true;
-      }, 400);
+      setTimeout(() => map.invalidateSize(), 500);
     } catch (e) { console.error("Map init error:", e); }
-  }, [items]);
+  }, []);
 
   useEffect(() => {
     if (!mapInstance.current || !layerGroupRef.current) return;
     layerGroupRef.current.clearLayers();
+    const bounds = L.latLngBounds([]);
+    let hasBounds = false;
 
     if (userPos) {
-      if (userMarkerRef.current) {
-        userMarkerRef.current.setLatLng(userPos);
-      } else {
+      if (!userMarkerRef.current) {
         userMarkerRef.current = L.circleMarker(userPos, {
-          radius: 12, fillColor: '#3b82f6', color: '#ffffff', weight: 4, opacity: 1, fillOpacity: 0.8, className: 'user-marker-pulse'
+          radius: 12, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 0.8, className: 'user-marker-pulse'
         }).addTo(mapInstance.current);
-        userMarkerRef.current.bindTooltip("Você", { permanent: false, direction: 'top' });
+        userMarkerRef.current.bindTooltip("Localização Atual", { permanent: false, direction: 'top' });
+      } else {
+        userMarkerRef.current.setLatLng(userPos);
       }
+      bounds.extend(userPos);
+      hasBounds = true;
     }
 
     items.forEach(item => {
       const geo = item.data?.["Geolocalização"];
       if (geo && geo.trim() !== "") {
         const parts = geo.split(',').map((p: string) => parseFloat(p.trim()));
-        if (parts.length === 2 && !isNaN(parts[0])) {
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
           const [lat, lng] = parts;
           let color = '#3b82f6'; // ctv
           if (item.groupType === 'telecom') color = '#6366f1';
@@ -185,19 +197,21 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
           if (item.groupType === 'embarcados') color = '#10b981';
           
           const marker = L.circleMarker([lat, lng], {
-            radius: 12, fillColor: color, color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 1
+            radius: 10, fillColor: color, color: '#ffffff', weight: 2, opacity: 1, fillOpacity: 1
           });
           
           const tagName = item.data?.["Tag"] || "Equipamento";
           marker.bindTooltip(tagName, { permanent: true, direction: 'top', className: 'tag-label', offset: [0, -8] });
           
           const popupContent = document.createElement('div');
-          popupContent.className = "p-2 min-w-[140px]";
+          popupContent.className = "p-2 min-w-[130px] flex flex-col gap-2";
           popupContent.innerHTML = `
-            <p class="text-[10px] font-black text-slate-900 uppercase mb-3 text-center border-b pb-1">${tagName}</p>
-            <div class="flex flex-col gap-2">
-               <button id="view-details-${item.id}" class="bg-blue-600 text-white px-3 py-2 rounded text-[9px] font-black cursor-pointer uppercase tracking-widest">Abrir Ativo</button>
+            <div class="border-b border-slate-200 pb-2 mb-1">
+              <p class="text-[10px] font-black text-slate-800 uppercase tracking-tighter">${tagName}</p>
+              <p class="text-[8px] font-bold text-slate-500 uppercase">${item.groupType}</p>
             </div>
+            <button id="view-details-${item.id}" class="bg-blue-600 text-white px-3 py-2 rounded text-[9px] font-black cursor-pointer border-none uppercase">Ver Detalhes</button>
+            <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" class="bg-slate-800 text-white px-3 py-2 rounded text-[9px] font-black text-center no-underline uppercase">Google Maps</a>
           `;
 
           marker.bindPopup(popupContent);
@@ -205,50 +219,51 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
              const btn = document.getElementById(`view-details-${item.id}`);
              if (btn) btn.onclick = () => { onSelectItem(item); onClose(); };
           });
+
           layerGroupRef.current.addLayer(marker);
+          bounds.extend([lat, lng]);
+          hasBounds = true;
         }
       }
     });
-  }, [items, userPos]);
+
+    if (hasBounds && mapInstance.current) {
+        mapInstance.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 18 });
+    }
+  }, [items, userPos, onSelectItem, onClose]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-800 w-full h-[95vh] sm:h-[90vh] sm:max-w-6xl sm:rounded-[2.5rem] overflow-hidden flex flex-col border border-slate-700 shadow-2xl">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-slate-800 w-full h-[95vh] sm:h-[85vh] sm:max-w-6xl sm:rounded-[2.5rem] overflow-hidden flex flex-col border border-slate-700 shadow-2xl">
         <div className="p-4 sm:p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 backdrop-blur-md">
           <div className="flex items-center gap-3">
-             <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-2xl border border-blue-500/20"><Globe className="w-5 h-5" /></div>
-             <div>
-               <h3 className="font-black text-white text-base tracking-tighter uppercase leading-none">Visão Satélite Híbrida</h3>
-               <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-widest">Sistema de Alta Precisão</span>
-             </div>
+             <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl"><Globe className="w-5 h-5" /></div>
+             <h3 className="font-black text-white text-base tracking-tighter uppercase">Painel Satélite de Ativos</h3>
           </div>
           <div className="flex gap-2.5">
-            <button onClick={() => userPos && mapInstance.current?.setView(userPos, 19, {animate: true})} className="p-2.5 bg-blue-600 text-white rounded-xl active:scale-95 transition-all"><Locate className="w-6 h-6" /></button>
-            <button onClick={onClose} className="p-2.5 bg-red-500/10 text-red-500 rounded-xl active:scale-95"><X className="w-6 h-6" /></button>
+            <button onClick={() => userPos && mapInstance.current?.setView(userPos, 19, {animate: true})} className="p-2.5 bg-blue-600 text-white rounded-xl active:scale-90 transition-all shadow-lg"><Locate className="w-6 h-6" /></button>
+            <button onClick={onClose} className="p-2.5 bg-slate-700 rounded-xl text-slate-400 active:scale-90 transition-all"><X className="w-6 h-6" /></button>
           </div>
         </div>
         <div className="flex-1 relative bg-slate-900">
             <div ref={mapRef} className="absolute inset-0 z-0" />
             
-            <div className="absolute bottom-6 left-6 z-[1000] p-4 bg-slate-800/90 backdrop-blur-xl rounded-2xl border border-white/10 pointer-events-none shadow-2xl">
-                <div className="flex items-center gap-3">
-                    <div className={`w-2.5 h-2.5 rounded-full ${userPos ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)]' : 'bg-red-500 animate-pulse'}`}></div>
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{userPos ? 'GPS Conectado' : 'Buscando Localização...'}</span>
+            <div className="absolute bottom-6 left-6 z-10 p-4 bg-slate-800/90 backdrop-blur-xl rounded-2xl border border-white/5 pointer-events-none shadow-2xl">
+                <div className="flex items-center gap-2.5">
+                    <div className={`w-2.5 h-2.5 rounded-full ${userPos ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{userPos ? 'GPS Sincronizado' : 'Buscando Satélites...'}</span>
                 </div>
             </div>
-            
-            <style>{`
-                .user-marker-pulse { animation: pulse-blue 2.5s infinite; }
-                @keyframes pulse-blue {
-                    0% { stroke-width: 4px; stroke: #fff; r: 10; }
-                    50% { stroke-width: 15px; stroke: rgba(59, 130, 246, 0.4); r: 15; }
-                    100% { stroke-width: 4px; stroke: #fff; r: 10; }
-                }
-            `}</style>
         </div>
       </div>
     </div>
   );
+};
+
+const isKeyVisible = (k: string) => {
+  if (!k) return false;
+  const key = k.toLowerCase();
+  return !key.includes('geo') && !key.includes('link') && k.trim() !== "";
 };
 
 const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; user: User; onClose: () => void; onDelete: (id: string) => void; }> = ({ item, groupKey, config, user, onClose, onDelete }) => {
@@ -269,22 +284,27 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
       try {
           const docRef = doc(db, groupKey, item.id);
           const finalData = { ...editData };
-          
           if (location) {
               finalData["Geolocalização"] = `${location.lat.toFixed(7)}, ${location.lng.toFixed(7)}`;
               finalData["Link Maps"] = `https://maps.google.com/?q=${location.lat},${location.lng}`;
           } else {
-              // Se location for null, remove os campos explicitamente para o Firestore refletir a exclusão
               finalData["Geolocalização"] = "";
               finalData["Link Maps"] = "";
           }
-          
-          await updateDoc(docRef, { 
-            data: finalData, 
-            content: finalData["Tag"] ? `Item: ${finalData["Tag"]}` : item.content 
-          });
+          await updateDoc(docRef, { data: finalData, content: finalData["Tag"] ? `Item: ${finalData["Tag"]}` : item.content });
           setIsEditing(false);
       } catch (e) { alert("Erro ao salvar."); } finally { setIsSaving(false); }
+  };
+
+  const downloadItemKML = () => {
+    if (!location) return;
+    const tagName = editData["Tag"] || "Tag_Sem_Nome";
+    const kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><name>${tagName}</name><Point><coordinates>${location.lng},${location.lat},0</coordinates></Point></Placemark></kml>`;
+    const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${tagName}.kml`;
+    link.click();
   };
 
   return (
@@ -292,53 +312,51 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
           <div className={`p-5 sm:p-8 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-20`}>
               <div className="flex items-center gap-4">
                   <button onClick={onClose} className="p-2 bg-white/20 hover:bg-white/30 rounded-xl transition-all"><ArrowLeft className="w-5 h-5" /></button>
-                  <h2 className="text-xl font-black tracking-tighter uppercase truncate">{isEditing ? "Edição" : (editData["Tag"] || "Detalhes")}</h2>
+                  <h2 className="text-xl font-black tracking-tighter uppercase truncate max-w-[200px]">{isEditing ? "Edição" : (editData["Tag"] || "Detalhes")}</h2>
               </div>
-              {!isEditing && (
-                 <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-white/20 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 transition-all hover:bg-white/30"><Edit className="w-4 h-4" /> Editar</button>
-              )}
+              <div className="flex gap-2">
+                 {!isEditing && <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-white/20 rounded-lg text-xs font-black uppercase flex items-center gap-2 transition-all hover:bg-white/30"><Edit className="w-4 h-4" /> Editar</button>}
+                 <button onClick={() => confirm("Remover permanentemente?") && onDelete(item.id)} className="p-2 bg-red-500/20 text-red-400 rounded-lg"><Trash2 className="w-5 h-5" /></button>
+              </div>
           </div>
           <div className="p-6 sm:p-10 space-y-8 flex-1 overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 flex flex-col gap-4 shadow-xl">
+                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 flex flex-col gap-4 shadow-xl">
                     <div className="flex items-center gap-4">
-                      <div className={`p-4 rounded-2xl border-2 ${location ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}`}><MapPin className="w-6 h-6" /></div>
+                      <div className={`p-3 rounded-xl border ${location ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}><MapPin className="w-6 h-6" /></div>
                       <div className="flex-1">
                          <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Coordenadas Atuais</h4>
-                         <p className="text-sm text-slate-200 font-mono font-black">{location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : "Não Vinculado"}</p>
+                         <p className="text-sm text-slate-200 font-mono font-black">{location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : "Não registrado"}</p>
                       </div>
                       {isEditing && location && (
-                        <button 
-                          onClick={() => { if(confirm("Remover marcação do mapa?")) setLocation(null); }} 
-                          className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 border border-red-500/20"
-                          title="Excluir marcação"
-                        >
-                          <MapPinOff className="w-5 h-5" />
-                        </button>
+                        <button onClick={() => setLocation(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg"><MapPinOff className="w-5 h-5" /></button>
                       )}
                     </div>
                     {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={editData["Tag"]} />}
-                    <div className="grid grid-cols-1 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                         {isEditing ? (
-                            <button onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat:p.coords.latitude, lng:p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy:true}) }} className="w-full py-4 bg-blue-600 text-white text-[10px] font-black uppercase rounded-2xl flex items-center justify-center gap-2 transition-all">{gettingLocation ? <Loader2 className="animate-spin w-4 h-4"/> : <Crosshair className="w-4 h-4"/>} Capturar GPS Atual</button>
+                            <button onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat:p.coords.latitude, lng:p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy:true}) }} className="col-span-2 py-4 bg-blue-600 text-white text-[10px] font-black uppercase rounded-xl">{gettingLocation ? "Obtendo GPS..." : "Capturar Localização"}</button>
                         ) : location && (
-                            <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`, '_blank')} className="w-full py-4 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-2xl flex items-center justify-center gap-2"><Navigation2 className="w-4 h-4" /> Traçar Rota</button>
+                            <>
+                                <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`, '_blank')} className="py-3 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-xl flex items-center justify-center gap-2"><Navigation2 className="w-3 h-3" /> Rota</button>
+                                <button onClick={downloadItemKML} className="py-3 bg-slate-700 text-white text-[10px] font-black uppercase rounded-xl flex items-center justify-center gap-2"><FileDown className="w-3 h-3" /> KML</button>
+                            </>
                         )}
                     </div>
                 </div>
-                <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 flex flex-col justify-center gap-2">
-                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Registrado em</h4>
-                    <p className="text-xl text-slate-200 font-black uppercase">{item.createdAt ? item.createdAt.toDate().toLocaleDateString('pt-BR') : "---"}</p>
+                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 flex items-center gap-4">
+                    <div className="p-3 bg-slate-700/50 text-slate-400 rounded-xl"><Clock className="w-6 h-6" /></div>
+                    <div><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Registrado em</h4><p className="text-sm text-slate-200 font-black">{item.createdAt ? item.createdAt.toDate().toLocaleDateString('pt-BR') : "---"}</p></div>
                 </div>
               </div>
-              <div className="space-y-4">
-                 <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">Ficha de Dados Técnica</h4>
+              <div className="space-y-4 pb-10">
+                 <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">Ficha Técnica do Ativo</h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {Object.entries(editData).filter(([k]) => !k.toLowerCase().includes('geo') && !k.toLowerCase().includes('link')).map(([key, value]) => (
-                        <div key={key} className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700/50">
-                          <h5 className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-2"><Database className="inline w-3 h-3 mr-1" /> {key}</h5>
+                    {Object.entries(editData).filter(([k]) => isKeyVisible(k)).map(([key, value]) => (
+                        <div key={key} className="bg-slate-800/50 p-5 rounded-xl border border-slate-700/50">
+                          <h5 className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-2"><Database className="w-3 h-3 inline mr-1" /> {key}</h5>
                           {isEditing ? (
-                            <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm font-black focus:border-blue-500 outline-none shadow-inner" />
+                            <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm outline-none font-bold focus:border-blue-500 shadow-inner" />
                           ) : (
                             <p className="text-white font-black text-base uppercase">{String(value)}</p>
                           )}
@@ -347,10 +365,9 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                  </div>
               </div>
               {isEditing && (
-                <div className="grid grid-cols-2 gap-5 pt-6">
-                    <button onClick={() => confirm("Excluir registro permanentemente?") && onDelete(item.id)} className="py-6 rounded-3xl bg-red-600/10 text-red-500 font-black uppercase text-[11px] border border-red-500/20 hover:bg-red-600/20">Excluir Permanente</button>
-                    <button onClick={handleSave} disabled={isSaving} className={`py-6 rounded-3xl text-white font-black uppercase text-[11px] ${config.color} shadow-2xl flex justify-center items-center gap-3 active:scale-95 transition-all`}>
-                        {isSaving ? <Loader2 className="animate-spin w-6 h-6"/> : <Save className="w-6 h-6"/>} Salvar e Finalizar
+                <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-900/95 backdrop-blur border-t border-slate-700 z-30 sm:relative sm:p-0 sm:bg-transparent sm:border-none">
+                    <button onClick={handleSave} disabled={isSaving} className={`w-full py-5 rounded-2xl text-white font-black uppercase text-[11px] tracking-widest ${config.color} shadow-2xl flex justify-center items-center gap-3`}>
+                        {isSaving ? <Loader2 className="animate-spin w-5 h-5"/> : <Save className="w-5 h-5"/>} Salvar Alterações
                     </button>
                 </div>
               )}
@@ -366,37 +383,53 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
   const hasGeo = !!data["Geolocalização"] && data["Geolocalização"].trim() !== "";
 
   return (
-    <div onClick={onSelect} className="relative flex flex-col bg-slate-800/40 backdrop-blur-xl rounded-[2rem] border border-slate-700/60 p-1 shadow-2xl hover:shadow-blue-500/10 transition-all cursor-pointer active:scale-95 group overflow-hidden border-b-4 border-b-transparent hover:border-b-blue-500">
-      <div className="p-6 flex flex-col gap-4">
+    <div onClick={onSelect} className="relative flex flex-col bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-slate-700/60 p-1 shadow-xl hover:shadow-blue-500/10 transition-all cursor-pointer active:scale-95 group overflow-hidden">
+      <div className="p-5 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-base font-black text-white truncate tracking-tighter uppercase"><HighlightedText text={tagValue} highlight={searchHighlight} /></h3>
-          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-             <button onClick={(e) => onEdit(e, item)} className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl hover:bg-blue-500/20 border border-blue-500/20"><Edit className="w-4 h-4" /></button>
-             <button onClick={(e) => onDelete(e, item.id)} className="p-2.5 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500/20 border border-red-500/20"><Trash2 className="w-4 h-4" /></button>
+          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+             <button onClick={(e) => onEdit(e, item)} className="p-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/30"><Edit className="w-4 h-4" /></button>
+             <button onClick={(e) => onDelete(e, item.id)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/30"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
-        <div className="flex items-center gap-2.5 text-slate-400 bg-slate-900/40 px-3 py-2 rounded-2xl border border-white/5">
-          <MapPin className={`w-4 h-4 ${hasGeo ? 'text-emerald-500' : 'text-slate-600'}`} />
+        <div className="flex items-center gap-2 text-slate-400 bg-slate-900/40 px-3 py-2 rounded-xl border border-white/5">
+          <MapPin className={`w-3.5 h-3.5 ${hasGeo ? 'text-emerald-500' : 'text-slate-600'}`} />
           <span className="text-[10px] font-black truncate uppercase tracking-tight">{localValue}</span>
         </div>
-        <div className="flex items-center justify-between text-[9px] font-black text-slate-500 pt-3 border-t border-white/5 uppercase tracking-widest">
-           <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${hasGeo ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></div>{config.label}</div>
-           <span className={hasGeo ? 'text-emerald-500' : ''}>{hasGeo ? 'LOCALIZADO' : 'S/ MAPA'}</span>
+
+        {/* Exibição dos Switches para Painéis */}
+        {config.id === 'painel' && (
+          <div className="flex flex-col gap-1.5 mt-1 border-t border-white/5 pt-2">
+            {['Switch1', 'Switch2', 'Switch3'].map((swKey, idx) => data[swKey] && (
+              <div key={swKey} className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-900/50 border border-white/5 rounded-lg">
+                <Server className="w-3 h-3 text-blue-400" />
+                <span className="text-[8px] font-black text-slate-300 font-mono uppercase truncate">SW-0{idx+1}: {data[swKey]}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {config.id === 'painel' && data["Equipamento"] && (
+            <div className="px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-lg text-[8px] text-orange-400 font-black uppercase truncate tracking-widest">{data["Equipamento"]}</div>
+        )}
+        <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-2 border-t border-white/5 uppercase tracking-widest">
+           <div className="flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${hasGeo ? 'bg-emerald-500 animate-pulse shadow-[0_0_5px_#10b981]' : 'bg-slate-600'}`}></div>{config.label}</div>
+           <span>{hasGeo ? 'LOCALIZADO' : 'S/ GPS'}</span>
         </div>
       </div>
     </div>
   );
 };
 
-/* Corrected commas instead of semicolons in props destructuring and state hooks */
-const GroupPage: React.FC<{ groupKey: GroupType, user: User, onBack: () => void, initialSelectedItem?: GroupItem | null }> = ({ groupKey, user, onBack, initialSelectedItem }) => {
+const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void; initialSelectedItem?: GroupItem | null }> = ({ groupKey, user, onBack, initialSelectedItem }) => {
   const config = groupsConfig[groupKey];
+  const Icon = config.icon;
   const [items, setItems] = useState<GroupItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<GroupItem | null>(initialSelectedItem || null);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState<any>({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '' });
+  const [formData, setFormData] = useState<any>({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '' });
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
 
@@ -409,9 +442,11 @@ const GroupPage: React.FC<{ groupKey: GroupType, user: User, onBack: () => void,
     e.preventDefault();
     setLoading(true);
     try {
-      let data: any = { "Tag": formData.tag, "Local": formData.local };
+      const finalLocal = formData.local === "NOVO" ? formData.customLocal : formData.local;
+      const finalEquip = formData.equipamento === "NOVO" ? formData.customEquipamento : formData.equipamento;
+      let data: any = { "Tag": formData.tag, "Local": finalLocal };
       if (groupKey === 'painel') {
-          data = { ...data, "Switch1": formData.switch1, "Switch2": formData.switch2, "Switch3": formData.switch3 };
+          data = { ...data, "Switch1": formData.switch1, "Switch2": formData.switch2, "Switch3": formData.switch3, "Equipamento": finalEquip };
       } else {
           data = { ...data, "IP / Identificador": formData.ip };
       }
@@ -421,7 +456,7 @@ const GroupPage: React.FC<{ groupKey: GroupType, user: User, onBack: () => void,
       }
       await addDoc(collection(db, groupKey), { content: `Item: ${formData.tag}`, data, userId: user.uid, userEmail: user.email, createdAt: serverTimestamp() });
       setIsModalOpen(false);
-      setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '' });
+      setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '' });
       setLocation(null);
     } catch (e) { alert('Erro'); } finally { setLoading(false); }
   };
@@ -436,10 +471,10 @@ const GroupPage: React.FC<{ groupKey: GroupType, user: User, onBack: () => void,
 
   return (
     <div className="pb-24 animate-fadeIn">
-      <div className="p-8 sm:p-12 mb-8 bg-slate-800/60 rounded-[3rem] border border-slate-700 flex flex-col gap-8 shadow-2xl">
+      <div className="p-8 sm:p-12 mb-8 bg-slate-800/60 rounded-[3rem] border border-slate-700 flex flex-col gap-6 shadow-2xl">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-6">
-            <button onClick={onBack} className="p-4 bg-slate-700 rounded-2xl text-slate-300 transition-all hover:bg-slate-600 border border-white/5 active:scale-90"><ArrowLeft className="w-7 h-7" /></button>
+            <button onClick={onBack} className="p-4 bg-slate-700 rounded-2xl text-slate-300 transition-all hover:bg-slate-600 active:scale-90"><ArrowLeft className="w-7 h-7" /></button>
             <div>
               <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tighter uppercase leading-none">{config.label}</h2>
               <span className="text-[10px] uppercase tracking-widest font-black text-slate-500 mt-2 block">Central de Ativos Industriais</span>
@@ -453,7 +488,7 @@ const GroupPage: React.FC<{ groupKey: GroupType, user: User, onBack: () => void,
 
       <div className="relative mb-10 group">
         <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-        <input type="text" placeholder={`Buscar por tag, IP, switch ou local...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 pr-6 py-5 bg-slate-800/80 border border-slate-700 rounded-3xl text-white text-lg outline-none font-black placeholder-slate-600 shadow-2xl focus:border-blue-500 transition-all backdrop-blur-md" />
+        <input type="text" placeholder={`Buscar por tag, IP ou local...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 pr-6 py-5 bg-slate-800/80 border border-slate-700 rounded-3xl text-white text-lg outline-none font-black placeholder-slate-600 shadow-2xl focus:border-blue-500 transition-all backdrop-blur-md" />
       </div>
 
       <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -464,26 +499,45 @@ const GroupPage: React.FC<{ groupKey: GroupType, user: User, onBack: () => void,
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-black/95 backdrop-blur-md p-0 sm:p-4 animate-fadeIn">
-          <div className="bg-slate-800 w-full h-[95vh] sm:h-auto sm:max-w-md sm:rounded-[3rem] border-t sm:border border-slate-600 overflow-y-auto shadow-2xl">
+          <div className="bg-slate-800 w-full h-[95vh] sm:h-auto sm:max-w-md sm:rounded-[3rem] border-t sm:border border-slate-600 overflow-y-auto">
             <div className={`p-7 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10 shadow-xl`}>
               <h3 className="text-xl font-black tracking-tighter uppercase leading-none">Novo Cadastro</h3>
               <button onClick={() => setIsModalOpen(false)} className="p-3 bg-white/10 rounded-xl hover:bg-white/20 transition-all"><X className="w-6 h-6" /></button>
             </div>
             <form onSubmit={handleSave} className="p-7 space-y-6">
               <button type="button" onClick={() => { setGettingLocation(true); navigator.geolocation.getCurrentPosition(p => { setLocation({lat: p.coords.latitude, lng: p.coords.longitude}); setGettingLocation(false); }, () => setGettingLocation(false), {enableHighAccuracy: true}) }} className={`w-full py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex flex-col items-center gap-2 transition-all shadow-xl ${location ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 text-blue-400 border border-slate-600'}`}>
-                {gettingLocation ? <Loader2 className="animate-spin w-5 h-5"/> : location ? <CheckCircle className="w-5 h-5"/> : <Crosshair className="w-5 h-5"/>} 
-                {location ? "LOCALIZAÇÃO GPS OK" : "OBTER COORDENADAS"}
+                <div className="flex items-center gap-2">{gettingLocation ? <Loader2 className="animate-spin w-5 h-5"/> : location ? <CheckCircle className="w-5 h-5"/> : <Crosshair className="w-5 h-5"/>} {location ? "GPS LOCALIZADO" : "CAPTURAR GPS"}</div>
               </button>
               
               {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
 
               <div className="space-y-4">
                 <input type="text" placeholder="Tag do Ativo" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black uppercase focus:border-blue-500 outline-none transition-all" />
-                <input type="text" placeholder="Localização Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase focus:border-blue-500 outline-none" />
+                
                 {groupKey === 'painel' ? (
-                   ['switch1', 'switch2', 'switch3'].map((sw, i) => <input key={sw} type="text" placeholder={`Link Switch ${i+1}`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-5 py-3 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-mono focus:border-blue-500 outline-none" />)
+                   <>
+                     <div className="grid grid-cols-1 gap-2">
+                        {['switch1', 'switch2', 'switch3'].map((sw, i) => <input key={sw} type="text" placeholder={`Link Switch 0${i+1}`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-5 py-3 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-mono focus:border-blue-500 outline-none" />)}
+                     </div>
+                     <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase focus:border-blue-500 outline-none appearance-none">
+                        <option value="">Selecione o Local...</option>
+                        {Object.keys(SYSTEM_DATA).map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                        <option value="NOVO">+ NOVO LOCAL</option>
+                     </select>
+                     {formData.local === "NOVO" && <input type="text" placeholder="Nome do Local" value={formData.customLocal} onChange={e => setFormData({...formData, customLocal: e.target.value})} className="w-full px-5 py-4 bg-slate-900 border border-blue-500/30 rounded-2xl text-white text-sm font-black uppercase" />}
+                     
+                     <select disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase focus:border-blue-500 outline-none disabled:opacity-30">
+                        <option value="">Selecione o Ativo...</option>
+                        {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                        <option value="NOVO">+ NOVO ATIVO</option>
+                     </select>
+                     {formData.equipamento === "NOVO" && <input type="text" placeholder="Nome do Ativo" value={formData.customEquipamento} onChange={e => setFormData({...formData, customEquipamento: e.target.value})} className="w-full px-5 py-4 bg-slate-900 border border-blue-500/30 rounded-2xl text-white text-sm font-black uppercase" />}
+                   </>
                 ) : (
-                   <input type="text" placeholder="Endereço IP / Identificador" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-mono focus:border-blue-500 outline-none" />
+                   <>
+                     <input type="text" placeholder="Localização Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-black uppercase focus:border-blue-500 outline-none" />
+                     <input type="text" placeholder="Endereço IP / Identificador" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-sm font-mono focus:border-blue-500 outline-none" />
+                   </>
                 )}
               </div>
               <button type="submit" disabled={loading} className={`w-full py-6 rounded-3xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[11px] tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50`}>
@@ -497,7 +551,6 @@ const GroupPage: React.FC<{ groupKey: GroupType, user: User, onBack: () => void,
   );
 };
 
-/* Corrected commas instead of semicolons in state hooks */
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [currentView, setCurrentView] = useState<ViewState>('home');
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);

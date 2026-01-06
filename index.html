@@ -39,45 +39,68 @@
           }
         }
       }
+      
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        console.error('Erro Global:', msg, 'no arquivo:', url, 'linha:', lineNo);
+        return false;
+      };
+
+      // Registrar Service Worker para PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then(reg => {
+            console.log('SW registrado com sucesso:', reg.scope);
+          }).catch(err => {
+            console.log('Falha ao registrar SW:', err);
+          });
+        });
+      }
     </script>
 
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #0f172a;
+        background-color: #0f172a; 
         color: #f1f5f9;
         margin: 0;
-        overflow-x: hidden;
       }
       
-      /* Estilo das Labels de Tag - Melhorado para Visibilidade em Satélite */
-      .leaflet-tooltip.tag-label {
-        background: rgba(15, 23, 42, 0.95);
-        border: 2px solid #3b82f6;
-        color: #ffffff;
-        font-weight: 900;
-        font-size: 10px;
-        text-transform: uppercase;
-        border-radius: 6px;
-        padding: 3px 6px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(8px);
-        white-space: nowrap;
-      }
-      .leaflet-tooltip-top.tag-label:before {
-        border-top-color: #3b82f6;
-      }
-      
-      /* Garantir que o mapa ocupe todo o container */
+      /* Removido o filtro invert/dark do tile pane para satélite profissional */
       .leaflet-container {
-        width: 100% !important;
-        height: 100% !important;
-        background: #020617 !important;
+        background: #0f172a !important;
       }
 
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      /* Estilização customizada dos Tooltips (Tags) no mapa */
+      .leaflet-tooltip.tag-label {
+        background: rgba(15, 23, 42, 0.9);
+        backdrop-filter: blur(4px);
+        border: 1px solid rgba(59, 130, 246, 0.5);
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 10px;
+        text-transform: uppercase;
+        border-radius: 4px;
+        padding: 2px 8px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        letter-spacing: 0.05em;
+      }
+      .leaflet-tooltip-top.tag-label:before {
+        border-top-color: rgba(59, 130, 246, 0.5);
+      }
+      
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-track { background: #0f172a; }
-      ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+      /* Pulse animation para o marcador de usuário */
+      .user-marker-pulse {
+        animation: map-pulse 2s infinite;
+      }
+      @keyframes map-pulse {
+        0% { r: 8; stroke-width: 2; stroke-opacity: 1; }
+        100% { r: 20; stroke-width: 1; stroke-opacity: 0; }
+      }
     </style>
 
     <script type="importmap">
@@ -93,11 +116,15 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "firebase/": "https://esm.sh/firebase@^12.7.0/"
+    "firebase/": "https://esm.sh/firebase@^12.7.0/",
+    "path": "https://esm.sh/path@^0.12.7",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "url": "https://esm.sh/url@^0.11.4"
   }
 }
 </script>
-  </head>
+</head>
   <body>
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
