@@ -14,7 +14,7 @@ import {
   getDocs 
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown, Layers, Locate, Activity, ZoomIn, ZoomOut, MessageSquare, FilterX } from 'lucide-react';
+import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown, Layers, Locate, Activity, ZoomIn, ZoomOut, MessageSquare, FilterX, IdCard } from 'lucide-react';
 
 declare const L: any;
 
@@ -239,17 +239,21 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
 
         <div className="flex-1 relative bg-slate-950">
             <div ref={mapRef} className="absolute inset-0 z-0" />
+            
+            {/* Custom Controls Overlays */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2">
                 <button onClick={handleZoomIn} className="p-3.5 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl active:scale-90 transition-all"><ZoomIn size={24} /></button>
                 <button onClick={handleZoomOut} className="p-3.5 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl active:scale-90 transition-all"><ZoomOut size={24} /></button>
                 <button onClick={centerOnUser} className="p-3.5 bg-blue-600 border border-blue-400/50 rounded-2xl text-white shadow-2xl active:scale-90 transition-all"><Locate size={24} /></button>
             </div>
+
             <div className="absolute bottom-6 left-6 z-10">
                 <div className="px-4 py-3 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/5 flex items-center gap-3 shadow-2xl">
                     <div className={`w-2.5 h-2.5 rounded-full ${userPos ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
                     <span className="text-[10px] font-black text-white uppercase tracking-widest leading-none">{userPos ? 'GPS Ativo' : 'Buscando Sinal...'}</span>
                 </div>
             </div>
+            
             <style>{`
                 .user-marker-pulse { animation: map-pulse 2s infinite; }
                 @keyframes map-pulse {
@@ -279,7 +283,11 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
 const isKeyVisible = (k: string) => {
   if (!k) return false;
   const key = k.toLowerCase();
-  return !key.includes('geo') && !key.includes('link') && !key.includes('empty') && !k.startsWith('__') && k.trim() !== "";
+  return !key.includes('geo') && 
+         !key.includes('link') && 
+         !key.includes('empty') && 
+         !k.startsWith('__') &&
+         k.trim() !== "";
 };
 
 const cleanTagName = (tag: string) => {
@@ -782,7 +790,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <header className="flex flex-col gap-6">
           <div className="flex justify-between items-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[8px] font-black uppercase tracking-widest text-blue-400">
-              <div className="w-1 h-1 rounded-full bg-blue-400 animate-ping"></div> TagFinder Cloud
+              <IdCard className="w-3 h-3 text-blue-400" /> TagFinder Cloud
             </div>
             <button onClick={() => signOut(auth)} className="p-3 bg-slate-800 border border-slate-700 rounded-xl text-slate-500 active:scale-90 transition-all hover:bg-slate-700/50"><LogOut className="w-5 h-5" /></button>
           </div>

@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, AuthError } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { Eye, EyeOff, Lock, Mail, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, ArrowRight, Loader2, AlertCircle, IdCard } from 'lucide-react';
 
 const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -48,8 +47,9 @@ const Login: React.FC = () => {
 
       <div className="w-full max-w-sm sm:max-w-md bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden relative z-10">
         {/* Header Section */}
-        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 p-6 sm:p-8 text-center relative overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 p-6 sm:p-8 text-center relative overflow-hidden flex flex-col items-center">
           <div className="absolute top-0 left-0 w-full h-full bg-black opacity-20"></div>
+          <IdCard className="w-10 h-10 text-blue-400 relative z-10 mb-2 drop-shadow-lg" />
           <h2 className="text-2xl sm:text-3xl font-bold text-white relative z-10 mb-2">TagFinder</h2>
           <p className="text-blue-100 relative z-10 text-xs sm:text-sm opacity-90">
             {isLogin ? 'Bem-vindo de volta!' : 'Crie sua conta gratuitamente'}

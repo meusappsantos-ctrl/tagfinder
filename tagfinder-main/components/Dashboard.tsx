@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, signOut } from 'firebase/auth';
 import { 
@@ -18,11 +19,12 @@ import {
   MapPin, Loader2, X, Globe, Trash2, Crosshair, 
   Server, CheckCircle, Database, Clock, Navigation2, Activity, Filter,
   MapPinOff, Navigation, ZoomIn, ZoomOut, Layers, ExternalLink, MessageSquare, Locate, FilterX,
-  Edit, ChevronRight
+  Edit, ChevronRight, IdCard
 } from 'lucide-react';
 
 declare const L: any;
 
+// Fix: Define missing DashboardProps interface
 interface DashboardProps {
   user: User;
 }
@@ -597,7 +599,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <header className="flex flex-col gap-6 sm:gap-10">
           <div className="flex justify-between items-center">
             <div className="inline-flex items-center gap-2.5 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-[8px] font-black uppercase tracking-[0.3em] text-blue-400 shadow-xl">
-               TAGFINDER V6.0 <Activity className="w-3 h-3 animate-pulse" />
+               <IdCard className="w-3 h-3 text-blue-400" /> TAGFINDER V6.0
             </div>
             <button onClick={() => signOut(auth)} className="p-3.5 bg-slate-800 border border-slate-700 rounded-2xl text-slate-500 hover:text-red-500 transition-all active:scale-90 shadow-xl"><LogOut size={20} /></button>
           </div>
