@@ -149,9 +149,10 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
   useEffect(() => {
     if (!mapRef.current || mapInstance.current || typeof L === 'undefined') return;
     try {
-      const map = L.map(mapRef.current, { zoomControl: false }).setView([-15.7801, -47.9292], 4);
+      const map = L.map(mapRef.current, { zoomControl: false, maxZoom: 22 }).setView([-15.7801, -47.9292], 4);
       L.tileLayer(GOOGLE_HYBRID_URL, { 
         maxZoom: 22,
+        maxNativeZoom: 21,
         attribution: SATELLITE_ATTRIBUTION
       }).addTo(map);
       layerGroupRef.current = L.layerGroup().addTo(map);
@@ -200,18 +201,18 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
           });
           
           const popupContent = `
-            <div class="p-3 min-w-[150px] flex flex-col gap-2">
-              <div class="border-b border-slate-200 pb-2">
-                <p class="text-[10px] font-black text-slate-800 uppercase tracking-tighter">${tagName}</p>
+            <div class="p-3 min-w-[150px] flex flex-col gap-2 bg-slate-900 text-white rounded-lg shadow-2xl border border-slate-700">
+              <div class="border-b border-slate-700 pb-2">
+                <p class="text-[10px] font-black uppercase tracking-tighter text-blue-400">${tagName}</p>
                 <p class="text-[8px] font-bold text-slate-500 uppercase">${item.groupType || 'Ativo'}</p>
               </div>
-              <div class="flex flex-col gap-1">
-                <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="w-full bg-blue-600 text-white px-2 py-1.5 rounded text-[9px] font-black text-center no-underline uppercase">Rota Google</a>
-                <a href="https://earth.google.com/web/search/${lat},${lng}" target="_blank" class="w-full bg-slate-800 text-white px-2 py-1.5 rounded text-[9px] font-black text-center no-underline uppercase">Google Earth</a>
+              <div class="flex flex-col gap-1.5 mt-1">
+                <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="w-full bg-blue-600 hover:bg-blue-500 text-white px-2 py-2 rounded text-[9px] font-black text-center no-underline uppercase transition-colors">Abrir Rota</a>
+                <a href="https://earth.google.com/web/search/${lat},${lng}" target="_blank" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-2 rounded text-[9px] font-black text-center no-underline uppercase transition-colors">Google Earth</a>
               </div>
             </div>
           `;
-          marker.bindPopup(popupContent);
+          marker.bindPopup(popupContent, { className: 'custom-popup' });
           layerGroupRef.current.addLayer(marker);
           bounds.extend([lat, lng]);
           hasItemsWithGeo = true;
@@ -251,14 +252,14 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
           <div className="flex items-center gap-3">
              <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><Globe className="w-5 h-5" /></div>
              <div>
-                <h3 className="font-black text-white text-base sm:text-lg tracking-tighter uppercase leading-none">Painel Satélite</h3>
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Google Hybrid Infrastructure</p>
+                <h3 className="font-black text-white text-base sm:text-lg tracking-tighter uppercase leading-none">Painel Satélite Profissional</h3>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Google Earth Hybrid Imagery</p>
              </div>
           </div>
           <button onClick={onClose} className="p-2.5 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 rounded-xl text-slate-400 transition-all active:scale-90 border border-slate-700"><X className="w-6 h-6" /></button>
         </div>
 
-        <div className="flex-1 relative bg-slate-950">
+        <div className="flex-1 relative bg-black">
             <div ref={mapRef} className="absolute inset-0 z-0" />
             
             <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2">
@@ -275,24 +276,9 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
             </div>
             
             <style>{`
-                .user-marker-pulse { animation: map-pulse 2s infinite; }
-                @keyframes map-pulse {
-                    0% { stroke-width: 2px; stroke: #fff; r: 10; }
-                    50% { stroke-width: 15px; stroke: rgba(59, 130, 246, 0.4); r: 14; }
-                    100% { stroke-width: 2px; stroke: #fff; r: 10; }
-                }
-                .tag-label {
-                  background: rgba(15, 23, 42, 0.95);
-                  backdrop-filter: blur(8px);
-                  border: 1px solid rgba(59, 130, 246, 0.5);
-                  color: white;
-                  font-weight: 900;
-                  font-size: 9px;
-                  text-transform: uppercase;
-                  border-radius: 4px;
-                  padding: 2px 8px;
-                  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-                }
+                .leaflet-popup-content-wrapper { background: transparent !important; padding: 0 !important; box-shadow: none !important; }
+                .leaflet-popup-tip { background: #0f172a !important; }
+                .custom-popup .leaflet-popup-content { margin: 0 !important; }
             `}</style>
         </div>
       </div>
@@ -611,7 +597,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     
     const terms = s.split(/\s+/);
     
-    // Reunir TODOS os valores do banco em uma string normalizada
     const searchableValues = [
         item.content,
         ...(item.data ? Object.values(item.data) : [])

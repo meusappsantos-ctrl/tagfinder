@@ -136,7 +136,8 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string, height?:
       }).setView([lat, lng], 18);
       L.tileLayer(GOOGLE_HYBRID_URL, { 
         attribution: SATELLITE_ATTRIBUTION,
-        maxZoom: 22
+        maxZoom: 22,
+        maxNativeZoom: 21
       }).addTo(map);
       L.circleMarker([lat, lng], {
         radius: 6, fillColor: '#3b82f6', color: '#ffffff', weight: 2, opacity: 1, fillOpacity: 1
@@ -187,12 +188,14 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
         zoomControl: false, 
         tap: true,
         fadeAnimation: true,
-        markerZoomAnimation: true
+        markerZoomAnimation: true,
+        maxZoom: 22
       }).setView([-15.7801, -47.9292], 4);
       
       L.tileLayer(GOOGLE_HYBRID_URL, { 
         attribution: SATELLITE_ATTRIBUTION,
         maxZoom: 22, 
+        maxNativeZoom: 21,
         updateWhenIdle: true
       }).addTo(map);
 
@@ -279,15 +282,15 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
           });
           
           const popupContent = document.createElement('div');
-          popupContent.className = "p-3 flex flex-col gap-3 min-w-[160px]";
+          popupContent.className = "p-3 flex flex-col gap-3 min-w-[160px] bg-slate-900 text-white rounded-lg border border-slate-700 shadow-2xl";
           popupContent.innerHTML = `
-            <div class="border-b border-slate-200 pb-2">
-              <p class="text-[11px] font-black uppercase text-slate-800 tracking-tight">${tagClean}</p>
+            <div class="border-b border-slate-700 pb-2">
+              <p class="text-[11px] font-black uppercase text-blue-400 tracking-tight">${tagClean}</p>
               <p class="text-[8px] font-bold text-slate-500 uppercase">${item.groupType || 'Ativo'}</p>
             </div>
-            <div class="flex flex-col gap-1.5">
-              <button id="btn-select-${item.id}" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase shadow-md transition-all active:scale-95">Visualizar Dados</button>
-              <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="w-full bg-slate-800 text-white px-3 py-2 rounded-lg text-[9px] font-black text-center no-underline uppercase shadow-sm">Traçar Rota</a>
+            <div class="flex flex-col gap-1.5 mt-1">
+              <button id="btn-select-${item.id}" class="w-full bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase shadow-md transition-all active:scale-95">Ver no Inventário</button>
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="w-full bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-[9px] font-black text-center no-underline uppercase shadow-sm transition-all">Traçar Rota</a>
             </div>
           `;
 
@@ -324,46 +327,32 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
           <div className="flex items-center gap-3">
              <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20 shadow-lg"><Globe className="w-5 h-5" /></div>
              <div>
-                <h3 className="font-black text-white text-base tracking-tighter uppercase leading-none">Painel Satélite</h3>
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Google Hybrid Infrastructure</p>
+                <h3 className="font-black text-white text-base tracking-tighter uppercase leading-none">Visão Satélite Fotorealista</h3>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Google Earth Satellite Engine</p>
              </div>
           </div>
           <button onClick={onClose} className="p-2.5 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 rounded-xl text-slate-400 transition-all active:scale-90 shadow-md border border-slate-700"><X className="w-6 h-6" /></button>
         </div>
 
-        <div className="flex-1 relative bg-slate-950">
+        <div className="flex-1 relative bg-black">
             <div ref={mapRef} className="absolute inset-0 z-0" />
+            
             <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2">
                 <button onClick={handleZoomIn} className="p-4 bg-slate-900/90 backdrop-blur-2xl border border-white/10 rounded-[1.25rem] text-white shadow-2xl active:scale-90 hover:bg-slate-800 transition-all"><ZoomIn size={22} /></button>
                 <button onClick={handleZoomOut} className="p-4 bg-slate-900/90 backdrop-blur-2xl border border-white/10 rounded-[1.25rem] text-white shadow-2xl active:scale-90 hover:bg-slate-800 transition-all"><ZoomOut size={22} /></button>
                 <button onClick={handleRecenter} className="p-4 bg-blue-600 border border-blue-400/50 rounded-[1.25rem] text-white shadow-2xl active:scale-90 hover:bg-blue-500 transition-all"><Locate size={22} /></button>
             </div>
+
             <div className="absolute bottom-6 left-6 z-10">
                 <div className="px-5 py-3.5 bg-slate-900/90 backdrop-blur-2xl rounded-[1.25rem] border border-white/5 flex items-center gap-3 shadow-2xl">
                     <div className={`w-3 h-3 rounded-full ${userPos ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
-                    <span className="text-[10px] font-black text-white uppercase tracking-[0.15em] leading-none">{userPos ? 'GPS Conectado' : 'Localizando...'}</span>
+                    <span className="text-[10px] font-black text-white uppercase tracking-[0.15em] leading-none">{userPos ? 'GPS Sincronizado' : 'Localizando...'}</span>
                 </div>
             </div>
+            
             <style>{`
-                .user-marker-pulse { animation: map-pulse 2.5s infinite; }
-                @keyframes map-pulse {
-                    0% { stroke-width: 2px; stroke: #fff; r: 10; }
-                    50% { stroke-width: 18px; stroke: rgba(59, 130, 246, 0.4); r: 15; }
-                    100% { stroke-width: 2px; stroke: #fff; r: 10; }
-                }
-                .tag-label {
-                  background: rgba(15, 23, 42, 0.95);
-                  backdrop-filter: blur(8px);
-                  border: 1px solid rgba(59, 130, 246, 0.6);
-                  color: white;
-                  font-weight: 900;
-                  font-size: 9px;
-                  text-transform: uppercase;
-                  border-radius: 4px;
-                  padding: 3px 10px;
-                  box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.6);
-                  letter-spacing: 0.05em;
-                }
+                .leaflet-popup-content-wrapper { background: transparent !important; padding: 0 !important; box-shadow: none !important; }
+                .leaflet-popup-tip { display: none !important; }
             `}</style>
         </div>
       </div>
