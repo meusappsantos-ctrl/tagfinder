@@ -67,10 +67,20 @@ const groupsConfig = {
   },
 };
 
+const normalizeText = (text: string) => {
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+};
+
 const HighlightedText: React.FC<{ text: string; highlight: string; className?: string }> = ({ text, highlight, className = "" }) => {
   if (!highlight.trim()) return <span className={className}>{text}</span>;
-  const regex = new RegExp(`(${highlight})`, 'gi');
+  
+  const terms = highlight.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+  if (terms.length === 0) return <span className={className}>{text}</span>;
+
+  const pattern = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const regex = new RegExp(`(${pattern})`, 'gi');
   const parts = text.split(regex);
+
   return (
     <span className={className}>
       {parts.map((part, i) => regex.test(part) ? (
@@ -119,6 +129,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
   const userMarkerRef = useRef<any>(null);
   const layerGroupRef = useRef<any>(null);
   const [userPos, setUserPos] = useState<[number, number] | null>(null);
+  const initialFitDone = useRef(false);
 
   useEffect(() => {
     const watchId = navigator.geolocation.watchPosition(
@@ -152,21 +163,18 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
 
   useEffect(() => {
     if (!mapInstance.current || !layerGroupRef.current) return;
+    
     layerGroupRef.current.clearLayers();
     const bounds = L.latLngBounds([]);
-    let hasBounds = false;
+    let hasItemsWithGeo = false;
 
     if (userPos && !userMarkerRef.current) {
         userMarkerRef.current = L.circleMarker(userPos, {
             radius: 10, fillColor: '#3b82f6', color: '#ffffff', weight: 3, opacity: 1, fillOpacity: 1, className: 'user-marker-pulse'
         }).addTo(mapInstance.current);
         userMarkerRef.current.bindTooltip("Você", { permanent: false, direction: 'top' });
-        bounds.extend(userPos);
-        hasBounds = true;
     } else if (userPos) {
         userMarkerRef.current.setLatLng(userPos);
-        bounds.extend(userPos);
-        hasBounds = true;
     }
 
     items.forEach(item => {
@@ -206,12 +214,16 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
           marker.bindPopup(popupContent);
           layerGroupRef.current.addLayer(marker);
           bounds.extend([lat, lng]);
-          hasBounds = true;
+          hasItemsWithGeo = true;
         }
       }
     });
 
-    if (hasBounds) mapInstance.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+    if (hasItemsWithGeo && !initialFitDone.current) {
+        if (userPos) bounds.extend(userPos);
+        mapInstance.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+        initialFitDone.current = true;
+    }
   }, [items, userPos]);
 
   const centerOnUser = () => {
@@ -220,8 +232,17 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
     }
   };
 
-  const handleZoomIn = () => mapInstance.current?.zoomIn();
-  const handleZoomOut = () => mapInstance.current?.zoomOut();
+  const handleZoomIn = () => {
+      if (mapInstance.current) {
+          mapInstance.current.zoomIn();
+      }
+  };
+  
+  const handleZoomOut = () => {
+      if (mapInstance.current) {
+          mapInstance.current.zoomOut();
+      }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-md animate-fadeIn">
@@ -240,11 +261,10 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
         <div className="flex-1 relative bg-slate-950">
             <div ref={mapRef} className="absolute inset-0 z-0" />
             
-            {/* Custom Controls Overlays */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2">
-                <button onClick={handleZoomIn} className="p-3.5 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl active:scale-90 transition-all"><ZoomIn size={24} /></button>
-                <button onClick={handleZoomOut} className="p-3.5 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl active:scale-90 transition-all"><ZoomOut size={24} /></button>
-                <button onClick={centerOnUser} className="p-3.5 bg-blue-600 border border-blue-400/50 rounded-2xl text-white shadow-2xl active:scale-90 transition-all"><Locate size={24} /></button>
+                <button onClick={handleZoomIn} className="p-3.5 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl active:scale-90 transition-all hover:bg-slate-800"><ZoomIn size={24} /></button>
+                <button onClick={handleZoomOut} className="p-3.5 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl active:scale-90 transition-all hover:bg-slate-800"><ZoomOut size={24} /></button>
+                <button onClick={centerOnUser} className="p-3.5 bg-blue-600 border border-blue-400/50 rounded-2xl text-white shadow-2xl active:scale-90 transition-all hover:bg-blue-500"><Locate size={24} /></button>
             </div>
 
             <div className="absolute bottom-6 left-6 z-10">
@@ -438,7 +458,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                         <Trash2 className="w-4 h-4" /> Excluir
                     </button>
                     <button onClick={handleSave} disabled={isSaving} className={`py-5 rounded-2xl text-white font-black uppercase tracking-widest text-[10px] ${config.color} shadow-2xl flex justify-center items-center gap-3 transition-all active:scale-95`}>
-                        {isSaving ? <Loader2 className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5"/>} Salvar Alterações
+                        {isSaving ? <Loader2 className="animate-spin w-5 h-5"/> : <Save className="w-5 h-5"/>} Salvar Alterações
                     </button>
                 </div>
               )}
@@ -451,50 +471,54 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
   const data = item.data || {};
   const tagValue = data["Tag"] || item.content.split('|')[0].trim().replace(/^Item:\s*/i, '');
   const localValue = data["Local"] || "S/ Local";
+  const ipValue = data["IP / Equipamento"] || data["IP"] || "";
   const hasGeo = !!data["Geolocalização"];
   const isPainel = config.id === 'painel';
+  const isTelecomOrEmbedded = config.id === 'telecom' || config.id === 'embarcados';
 
   return (
     <div onClick={onSelect} className="relative flex flex-col bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/60 p-1 shadow hover:shadow-xl transition-all cursor-pointer active:scale-95 group overflow-hidden">
       <div className="p-4 sm:p-5 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-base sm:text-lg font-black text-white truncate tracking-tighter uppercase group-hover:text-blue-400 transition-colors"><HighlightedText text={tagValue} highlight={searchHighlight} /></h3>
+          <h3 className="text-base sm:text-lg font-black text-white truncate tracking-tighter uppercase group-hover:text-blue-400 transition-colors">
+            <HighlightedText text={tagValue} highlight={searchHighlight} />
+          </h3>
           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
              <button onClick={(e) => onEdit(e, item)} className="p-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-all"><Edit className="w-3.5 h-3.5" /></button>
              <button onClick={(e) => onDelete(e, item.id)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/30 transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
           </div>
         </div>
+        
         <div className="flex items-center gap-2 text-slate-400 bg-slate-900/30 px-2.5 py-1.5 rounded-lg border border-white/5">
           <MapPin className={`w-3.5 h-3.5 ${hasGeo ? 'text-emerald-500' : 'text-slate-600'}`} />
-          <span className="text-[10px] font-bold truncate tracking-tight">{localValue}</span>
+          <span className="text-[10px] font-bold truncate tracking-tight uppercase">
+            <HighlightedText text={localValue} highlight={searchHighlight} />
+          </span>
         </div>
         
+        {isTelecomOrEmbedded && ipValue && (
+            <div className="px-2.5 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[9px] text-blue-300 font-mono flex items-center gap-2">
+                <Database className="w-3 h-3 text-blue-500" />
+                <span className="truncate tracking-widest uppercase">
+                    <HighlightedText text={ipValue} highlight={searchHighlight} />
+                </span>
+            </div>
+        )}
+
         {isPainel && (
             <div className="space-y-2">
                 {data["Equipamento"] && (
                     <div className="px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded text-[9px] text-orange-400 font-black uppercase tracking-tighter truncate">
-                        {data["Equipamento"]}
+                        <HighlightedText text={data["Equipamento"]} highlight={searchHighlight} />
                     </div>
                 )}
                 <div className="flex flex-wrap gap-1">
-                    {data["Switch1"] && (
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
+                    {['Switch1', 'Switch2', 'Switch3'].map(sw => data[sw] && (
+                        <div key={sw} className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
                             <Activity className="w-2.5 h-2.5 text-blue-400" />
-                            <span>SW1: {data["Switch1"]}</span>
+                            <span>{sw.replace('Switch', 'SW')}: <HighlightedText text={data[sw]} highlight={searchHighlight} /></span>
                         </div>
-                    )}
-                    {data["Switch2"] && (
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
-                            <Activity className="w-2.5 h-2.5 text-blue-400" />
-                            <span>SW2: {data["Switch2"]}</span>
-                        </div>
-                    )}
-                    {data["Switch3"] && (
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
-                            <Activity className="w-2.5 h-2.5 text-blue-400" />
-                            <span>SW3: {data["Switch3"]}</span>
-                        </div>
-                    )}
+                    ))}
                 </div>
             </div>
         )}
@@ -581,18 +605,19 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     setSelectedItem(item);
   };
 
-  const filteredItems = items.filter(i => {
-    const s = searchTerm.toLowerCase().trim();
+  const filteredItems = items.filter(item => {
+    const s = normalizeText(searchTerm.trim());
     if (!s) return true;
-    const tag = (i.data?.["Tag"] || "").toLowerCase();
-    const local = (i.data?.["Local"] || "").toLowerCase();
-    const equip = (i.data?.["Equipamento"] || "").toLowerCase();
-    const sw1 = (i.data?.["Switch1"] || "").toLowerCase();
-    const sw2 = (i.data?.["Switch2"] || "").toLowerCase();
-    const sw3 = (i.data?.["Switch3"] || "").toLowerCase();
-    const ip = (i.data?.["IP / Equipamento"] || "").toLowerCase();
-    const obs = (i.data?.["Observação"] || "").toLowerCase();
-    return tag.includes(s) || local.includes(s) || equip.includes(s) || sw1.includes(s) || sw2.includes(s) || sw3.includes(s) || ip.includes(s) || obs.includes(s);
+    
+    const terms = s.split(/\s+/);
+    
+    // Reunir TODOS os valores do banco em uma string normalizada
+    const searchableValues = [
+        item.content,
+        ...(item.data ? Object.values(item.data) : [])
+    ].map(v => normalizeText(String(v))).join(" ");
+
+    return terms.every(term => searchableValues.includes(term));
   });
 
   if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => setSelectedItem(null)} onDelete={(id) => deleteDoc(doc(db, groupKey, id)).then(() => setSelectedItem(null))} />;
@@ -618,7 +643,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
         </div>
       </div>
 
-      {/* SISTEMA DE BUSCA MELHORADO */}
       <div className="flex flex-col gap-5 mb-8 max-w-4xl mx-auto">
         <div className="relative group">
           <div className={`absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none transition-colors ${searchTerm ? 'text-blue-500' : 'text-slate-500'}`}>
@@ -626,7 +650,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
           </div>
           <input 
             type="text" 
-            placeholder={`Pesquisar por tag, local, IP ou equipamento...`} 
+            placeholder={`Pesquisar em ${config.label} (Tag, Local, IP ou OBS)...`} 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)} 
             className="w-full pl-14 pr-14 py-5 bg-slate-800/80 backdrop-blur-xl border border-slate-700 rounded-3xl text-white outline-none font-bold placeholder-slate-600 shadow-2xl focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all"
@@ -643,7 +667,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
           )}
         </div>
         
-        {/* Indicador de resultados */}
         <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-3">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
@@ -651,7 +674,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                 </span>
                 {searchTerm && (
                     <span className="text-[9px] font-bold text-blue-400/80 italic">
-                        Filtrado por: "{searchTerm}"
+                        Realçando termos em {config.label}
                     </span>
                 )}
             </div>
@@ -663,7 +686,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
           {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} onDelete={quickDelete} onEdit={quickEdit} searchHighlight={searchTerm} />)}
         </div>
       ) : (
-        /* Estado Vazio Aprimorado */
         <div className="py-20 flex flex-col items-center justify-center text-center animate-fadeIn">
             <div className="p-8 bg-slate-800/40 rounded-full border border-slate-700 mb-6 group transition-all hover:scale-110">
                 <FilterX className="w-16 h-16 text-slate-600 group-hover:text-blue-500 transition-colors" />

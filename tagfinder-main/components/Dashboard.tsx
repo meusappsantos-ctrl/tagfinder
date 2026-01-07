@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, signOut } from 'firebase/auth';
 import { 
@@ -24,7 +23,6 @@ import {
 
 declare const L: any;
 
-// Fix: Define missing DashboardProps interface
 interface DashboardProps {
   user: User;
 }
@@ -74,10 +72,20 @@ const groupsConfig = {
   },
 };
 
+const normalizeText = (text: string) => {
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+};
+
 const HighlightedText: React.FC<{ text: string; highlight: string; className?: string }> = ({ text, highlight, className = "" }) => {
   if (!highlight.trim()) return <span className={className}>{text}</span>;
-  const regex = new RegExp(`(${highlight})`, 'gi');
+  
+  const terms = highlight.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+  if (terms.length === 0) return <span className={className}>{text}</span>;
+
+  const pattern = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const regex = new RegExp(`(${pattern})`, 'gi');
   const parts = text.split(regex);
+
   return (
     <span className={className}>
       {parts.map((part, i) => regex.test(part) ? (
@@ -301,7 +309,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
         mapInstance.current.fitBounds(bounds, { padding: [100, 100], maxZoom: 18 });
         initialFitDone.current = true;
     }
-  }, [items]);
+  }, [items, userPos]);
 
   const handleZoomIn = () => mapInstance.current?.zoomIn();
   const handleZoomOut = () => mapInstance.current?.zoomOut();
@@ -363,13 +371,14 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
   );
 };
 
-/* ItemCard component for displaying asset summaries in the grid */
 const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; searchHighlight: string; }> = ({ item, config, onSelect, searchHighlight }) => {
   const data = item.data || {};
   const tagValue = cleanTagName(data["Tag"] || item.content.replace(/^Item:\s*/i, ''));
   const localValue = data["Local"] || "S/ LOCAL";
+  const ipValue = data["IP / Equipamento"] || data["IP"] || "";
   const hasGeo = !!data["Geolocalização"];
   const isPainel = config.id === 'painel';
+  const isTelecomOrEmbedded = config.id === 'telecom' || config.id === 'embarcados';
 
   return (
     <div onClick={onSelect} className="relative flex flex-col bg-slate-800/40 backdrop-blur-xl rounded-[1.5rem] border border-slate-700/60 p-1 shadow-lg hover:shadow-2xl transition-all cursor-pointer active:scale-95 group overflow-hidden">
@@ -384,21 +393,32 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; s
         </div>
         
         <div className="flex items-center gap-2 text-slate-400 bg-slate-900/40 px-3 py-2 rounded-xl border border-white/5">
-          <span className="text-[9px] font-black truncate tracking-widest uppercase">{localValue}</span>
+          <span className="text-[9px] font-black truncate tracking-widest uppercase">
+            <HighlightedText text={localValue} highlight={searchHighlight} />
+          </span>
         </div>
-        
+
+        {isTelecomOrEmbedded && ipValue && (
+            <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-[9px] text-blue-300 font-mono flex items-center gap-2">
+                <Database size={12} className="text-blue-500" />
+                <span className="truncate tracking-widest">
+                    <HighlightedText text={ipValue} highlight={searchHighlight} />
+                </span>
+            </div>
+        )}
+
         {isPainel && (
             <div className="space-y-2">
                 {data["Equipamento"] && (
                     <div className="px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded text-[8px] text-orange-400 font-black uppercase tracking-tighter truncate">
-                        {data["Equipamento"]}
+                        <HighlightedText text={data["Equipamento"]} highlight={searchHighlight} />
                     </div>
                 )}
                 <div className="flex flex-wrap gap-1">
                     {['Switch1', 'Switch2', 'Switch3'].map(swKey => data[swKey] && (
                         <div key={swKey} className="flex items-center gap-1 px-2 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
                             <Activity className="w-2.5 h-2.5 text-blue-400" />
-                            <span className="uppercase">{swKey.slice(-1)}: {data[swKey]}</span>
+                            <span className="uppercase">{swKey.slice(-1)}: <HighlightedText text={data[swKey]} highlight={searchHighlight} /></span>
                         </div>
                     ))}
                 </div>
@@ -417,7 +437,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; s
   );
 };
 
-/* ItemDetail component for detailed view and editing of an asset */
 const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; user: User; onClose: () => void; onDelete: (id: string) => void; }> = ({ item, groupKey, config, user, onClose, onDelete }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -548,7 +567,6 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   );
 };
 
-/* Main Dashboard component managing overall navigation and satellite map access */
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [currentView, setCurrentView] = useState<ViewState>('home');
   const [allData, setAllData] = useState<GroupItem[]>([]);
@@ -645,7 +663,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   );
 };
 
-/* Separated GroupPage component handling asset listing and management for a specific category */
 const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void; initialSelectedItem?: GroupItem | null }> = ({ groupKey, user, onBack, initialSelectedItem }) => {
   const config = groupsConfig[groupKey];
   const [items, setItems] = useState<GroupItem[]>([]);
@@ -683,7 +700,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
             "Observação": formData.obs
           };
       } else {
-          data = { ...data, "IP": formData.ip };
+          data = { ...data, "IP / Equipamento": formData.ip };
       }
       
       data = removeEmptyKeys(data);
@@ -699,11 +716,17 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     } catch (e) { alert('Erro'); } finally { setLoading(false); }
   };
 
-  const filteredItems = items.filter(i => {
-    const s = searchTerm.toLowerCase().trim();
+  const filteredItems = items.filter(item => {
+    const s = normalizeText(searchTerm.trim());
     if (!s) return true;
-    const tag = cleanTagName(i.data?.["Tag"] || i.content).toLowerCase();
-    return tag.includes(s) || Object.values(i.data || {}).some(val => String(val).toLowerCase().includes(s));
+    
+    const terms = s.split(/\s+/);
+    const searchableValues = [
+        item.content,
+        ...(item.data ? Object.values(item.data) : [])
+    ].map(v => normalizeText(String(v))).join(" ");
+
+    return terms.every(term => searchableValues.includes(term));
   });
 
   if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => setSelectedItem(null)} onDelete={(id) => deleteDoc(doc(db, groupKey, id)).then(() => setSelectedItem(null))} />;
@@ -725,7 +748,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
         </div>
       </div>
 
-      {/* SISTEMA DE BUSCA MELHORADO */}
       <div className="flex flex-col gap-5 mb-8 max-w-4xl mx-auto">
         <div className="relative group">
           <div className={`absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none transition-colors ${searchTerm ? 'text-blue-500' : 'text-slate-500'}`}>
@@ -733,7 +755,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
           </div>
           <input 
             type="text" 
-            placeholder={`Filtrar por tag, local ou IP...`} 
+            placeholder={`Buscar em ${config.label} (Tag, Local, IP ou OBS)...`} 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)} 
             className="w-full pl-14 pr-14 py-5 bg-slate-800/80 backdrop-blur-xl border border-slate-700 rounded-3xl text-white outline-none font-bold placeholder-slate-600 shadow-2xl focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all"
