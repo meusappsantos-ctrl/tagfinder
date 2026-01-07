@@ -14,7 +14,7 @@ import {
   getDocs 
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown, Layers, Locate, Activity, ZoomIn, ZoomOut } from 'lucide-react';
+import { LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, MapPin, Loader2, Navigation, Edit, X, Globe, Trash2, Map as MapIcon, Crosshair, Server, ImageIcon, CheckCircle, ChevronRight, Hash, Database, Clock, Navigation2, Share2, FileDown, Layers, Locate, Activity, ZoomIn, ZoomOut, MessageSquare, FilterX } from 'lucide-react';
 
 declare const L: any;
 
@@ -39,44 +39,13 @@ const GOOGLE_HYBRID_URL = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
 const SATELLITE_ATTRIBUTION = '&copy; Google Maps';
 
 const SYSTEM_DATA: Record<string, string[]> = {
-  "SISTEMA 1": [
-    "TR-1081KS-03 (BC)", "TR-1082KS-13 (BCC)", "BELTI EE-1080KS-04 (MBW)", 
-    "BM-1080KS-04", "SE-1081KS-17", "SE-1081KS-03", "SE-1081KS-74", 
-    "SE-1081KS-13", "SE-1082KS-95 -(DRIVE)"
-  ],
-  "SISTEMA 2": [
-    "TR-1081KS-04", "TR-1081KS-52", "TR-1081KS-14 (bsm)", "TR-1081KS-05 (bsm)",
-    "SE-1081KS-52", "SE-1081KS-04", "SE-1081KS-76", "BELTI EE-1080KS-02",
-    "BM-1081KS-02", "SE-1081KS-50", "SE-1081KS-51", "SE-1081KS-56",
-    "SE-1081KS-27", "SE-1081KS-97", "SE-1081KS-14", "SE-1081KS-18 (bsm)",
-    "SE-1080KS-51 (bsm)"
-  ],
-  "SISTEMA 3": [
-    "TR-1081KS-11", "TR-1081KS-01", "BM-1081KS-03", "BELTI EE-1081KS03 (MBW)",
-    "SE-1081KS-01", "SE-1081KS-70", "SE-1081KS-15", "SE-1081KS-21",
-    "SE-1081KS-11", "SE-1081KS-91"
-  ],
-  "SISTEMA 4": [
-    "TR-1081KS-02", "TR-1081KS-12", "BM-1081KS-01", "BELTI EE-1081KS-01",
-    "SE-1081KS-02", "SE-1081KS-72", "SE-1081KS-12", "SE-1081KS-23", "SE-1081KS-93"
-  ],
-  "5ª BRITAGEM": [
-    "BM-1080KS-13", "BM-1080KS-12", "BM-1080KS-11", "TR-1080KS-81",
-    "TR-1085KS-36", "TR-1080KS-83", "TR-1080KS-88", "TR-1080KS-87",
-    "TR-1080KS-82", "TR-1080KS-85", "TR-1080KS-86", "TR-1080KS-80", "TR-1080KS-84"
-  ],
-  "CASA DE TRANSFERENCIA": [
-    "TR-1082KS-01", "TR-1082KS-02", "TR-1082KS-03", "TR-1082KS-04",
-    "TR-1082KS-05", "TR-1082KS-06", "TR-1080KS-37", "TR-1085KS-01",
-    "TR-1085KS-04", "TR-1083KS-01", "TR-1084KS-01", "TR-1085KS-05",
-    "SE-1084KS-01", "SE-1083KS-01", "SE-1082KS-02", "SE-1082KS-01",
-    "SE-1085KS-23", "SE-1082KS-03", "SE-1082KS-04", "SE-6021KS-01", "SE-1085KS-22"
-  ],
-  "OVERLAND": [
-    "TR-1083KS-03", "TR-1083KS-04", "SE-1084KS-22", "SE-1084KS-21",
-    "TR-1084KS-02", "TR-1083KS-02", "EE-1084KS-01 (mts)", "EE-1083KS-01 (mts)",
-    "SE-1083KS-02", "SE-1084KS-02"
-  ]
+  "SISTEMA 1": ["vc-1080ks-13.06", "bm-1080ks-04", "se-1081ks-03", "se-1081ks-13", "se-1081ks-17", "se-1081ks-74", "se-1082ks-95", "tr-1081ks-03", "tr-1082ks-13"],
+  "SISTEMA 2": ["ee-1080ks-02", "bm-1081ks-02", "se-1080ks-51", "se-1081ks-14", "se-1081ks-18", "se-1081ks-27", "se-1081ks-50", "se-1081ks-51", "se-1081ks-52", "se-1081ks-56", "se-1081ks-76", "se-1081ks-97", "tr-1081ks-04", "tr-1081ks-05", "tr-1081ks-14", "tr-1081ks-52"],
+  "SISTEMA 3": ["ee-1081ks-03", "bm-1081ks-03", "se-1081ks-01", "se-1081ks-11", "se-1081ks-15", "se-1081ks-21", "se-1081ks-70", "se-1081ks-91", "tr-1081ks-01", "tr-1081ks-11"],
+  "SISTEMA 4": ["ee-1081ks-01", "bm-1081ks-01", "se-1081ks-02", "se-1081ks-12", "se-1081ks-23", "se-1081ks-72", "se-1081ks-93", "tr-1081ks-02", "tr-1081ks-12"],
+  "5ª BRITAGEM": ["bm-1080ks-11", "bm-1080ks-12", "bm-1080ks-13", "tr-1080ks-80", "tr-1080ks-81", "tr-1080ks-82", "tr-1080ks-83", "tr-1080ks-84", "tr-1080ks-85", "tr-1080ks-86", "tr-1080ks-87", "tr-1080ks-88", "tr-1085ks-36"],
+  "CASA DE TRANSFERENCIA": ["ee-1084ks-01", "se-1082ks-01", "se-1082ks-02", "se-1082ks-03", "se-1082ks-04", "se-1083ks-01", "se-1084ks-01", "se-1085ks-22", "se-1085ks-23", "se-6021ks-01", "tr-1080ks-37", "tr-1082ks-01", "tr-1082ks-02", "tr-1082ks-03", "tr-1082ks-04", "tr-1082ks-05", "tr-1082ks-06", "tr-1083ks-01", "tr-1084ks-01", "tr-1085ks-01", "tr-1085ks-04", "tr-1085ks-05"],
+  "OVERLAND": ["ee-1083ks-01", "ee-1084ks-01", "se-1083ks-02", "se-1084ks-02", "se-1084ks-21", "se-1084ks-22", "tr-1083ks-02", "tr-1083ks-03", "tr-1083ks-04", "tr-1084ks-02"]
 };
 
 const groupsConfig = {
@@ -105,7 +74,7 @@ const HighlightedText: React.FC<{ text: string; highlight: string; className?: s
   return (
     <span className={className}>
       {parts.map((part, i) => regex.test(part) ? (
-        <span key={i} className="bg-blue-500/30 text-blue-100 rounded px-0.5 font-bold">{part}</span>
+        <mark key={i} className="bg-blue-500/40 text-white rounded px-0.5 font-bold shadow-sm inline-block">{part}</mark>
       ) : part)}
     </span>
   );
@@ -177,7 +146,6 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
       layerGroupRef.current = L.layerGroup().addTo(map);
       mapInstance.current = map;
       
-      // Invalidate size after modal animation
       setTimeout(() => map.invalidateSize(), 400);
     } catch (e) { console.error(e); }
   }, []);
@@ -263,7 +231,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
              <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><Globe className="w-5 h-5" /></div>
              <div>
                 <h3 className="font-black text-white text-base sm:text-lg tracking-tighter uppercase leading-none">Painel Satélite</h3>
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Sincronização em Tempo Real</p>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Google Hybrid Infrastructure</p>
              </div>
           </div>
           <button onClick={onClose} className="p-2.5 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 rounded-xl text-slate-400 transition-all active:scale-90 border border-slate-700"><X className="w-6 h-6" /></button>
@@ -271,21 +239,17 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
 
         <div className="flex-1 relative bg-slate-950">
             <div ref={mapRef} className="absolute inset-0 z-0" />
-            
-            {/* Custom Controls Overlays */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2">
                 <button onClick={handleZoomIn} className="p-3.5 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl active:scale-90 transition-all"><ZoomIn size={24} /></button>
                 <button onClick={handleZoomOut} className="p-3.5 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl text-white shadow-2xl active:scale-90 transition-all"><ZoomOut size={24} /></button>
                 <button onClick={centerOnUser} className="p-3.5 bg-blue-600 border border-blue-400/50 rounded-2xl text-white shadow-2xl active:scale-90 transition-all"><Locate size={24} /></button>
             </div>
-
             <div className="absolute bottom-6 left-6 z-10">
                 <div className="px-4 py-3 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/5 flex items-center gap-3 shadow-2xl">
                     <div className={`w-2.5 h-2.5 rounded-full ${userPos ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500 animate-pulse'}`}></div>
                     <span className="text-[10px] font-black text-white uppercase tracking-widest leading-none">{userPos ? 'GPS Ativo' : 'Buscando Sinal...'}</span>
                 </div>
             </div>
-            
             <style>{`
                 .user-marker-pulse { animation: map-pulse 2s infinite; }
                 @keyframes map-pulse {
@@ -315,11 +279,22 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void }> = ({
 const isKeyVisible = (k: string) => {
   if (!k) return false;
   const key = k.toLowerCase();
-  return !key.includes('geo') && 
-         !key.includes('link') && 
-         !key.includes('empty') && 
-         !k.startsWith('__') &&
-         k.trim() !== "";
+  return !key.includes('geo') && !key.includes('link') && !key.includes('empty') && !k.startsWith('__') && k.trim() !== "";
+};
+
+const cleanTagName = (tag: string) => {
+  if (!tag) return "";
+  return tag.split('|')[0].trim();
+};
+
+const removeEmptyKeys = (data: Record<string, any>) => {
+  const cleaned = { ...data };
+  Object.keys(cleaned).forEach(key => {
+    if (key.includes('__EMPTY')) {
+      delete cleaned[key];
+    }
+  });
+  return cleaned;
 };
 
 const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; user: User; onClose: () => void; onDelete: (id: string) => void; }> = ({ item, groupKey, config, user, onClose, onDelete }) => {
@@ -493,7 +468,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
                         {data["Equipamento"]}
                     </div>
                 )}
-                {/* Visualização de Switches na lista de Painéis */}
                 <div className="flex flex-wrap gap-1">
                     {data["Switch1"] && (
                         <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
@@ -537,7 +511,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
   const [formData, setFormData] = useState<any>({ 
     tag: '', local: '', ip: '', 
     switch1: '', switch2: '', switch3: '', equipamento: '',
-    customLocal: '', customEquipamento: ''
+    customLocal: '', customEquipamento: '', obs: ''
   });
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
@@ -564,7 +538,15 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
       const finalEquip = formData.equipamento === "NOVO" ? formData.customEquipamento : formData.equipamento;
       let data: any = {};
       if (groupKey === 'painel') {
-          data = { "Tag": formData.tag, "Switch1": formData.switch1, "Switch2": formData.switch2, "Switch3": formData.switch3, "Local": finalLocal, "Equipamento": finalEquip };
+          data = { 
+            "Tag": formData.tag, 
+            "Switch1": formData.switch1, 
+            "Switch2": formData.switch2, 
+            "Switch3": formData.switch3, 
+            "Local": finalLocal, 
+            "Equipamento": finalEquip,
+            "Observação": formData.obs
+          };
       } else {
           data = { "Tag": formData.tag, "Local": finalLocal, "IP / Equipamento": formData.ip };
       }
@@ -574,7 +556,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
       }
       await addDoc(collection(db, groupKey), { content: `Item: ${formData.tag}`, data, userId: user.uid, userEmail: user.email, createdAt: serverTimestamp() });
       setIsModalOpen(false);
-      setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '' });
+      setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '', obs: '' });
       setLocation(null);
     } catch (e) { alert('Erro'); } finally { setLoading(false); }
   };
@@ -592,22 +574,26 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
   };
 
   const filteredItems = items.filter(i => {
-    const s = searchTerm.toLowerCase();
+    const s = searchTerm.toLowerCase().trim();
+    if (!s) return true;
     const tag = (i.data?.["Tag"] || "").toLowerCase();
     const local = (i.data?.["Local"] || "").toLowerCase();
     const equip = (i.data?.["Equipamento"] || "").toLowerCase();
     const sw1 = (i.data?.["Switch1"] || "").toLowerCase();
     const sw2 = (i.data?.["Switch2"] || "").toLowerCase();
     const sw3 = (i.data?.["Switch3"] || "").toLowerCase();
-    return !s || tag.includes(s) || local.includes(s) || equip.includes(s) || sw1.includes(s) || sw2.includes(s) || sw3.includes(s);
+    const ip = (i.data?.["IP / Equipamento"] || "").toLowerCase();
+    const obs = (i.data?.["Observação"] || "").toLowerCase();
+    return tag.includes(s) || local.includes(s) || equip.includes(s) || sw1.includes(s) || sw2.includes(s) || sw3.includes(s) || ip.includes(s) || obs.includes(s);
   });
 
   if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => setSelectedItem(null)} onDelete={(id) => deleteDoc(doc(db, groupKey, id)).then(() => setSelectedItem(null))} />;
 
   return (
     <div className="pb-24 sm:pb-12 animate-fadeIn">
-      <div className="p-6 sm:p-10 mb-6 bg-slate-800/60 rounded-[2rem] sm:rounded-[3rem] border border-slate-700 flex flex-col gap-6">
-        <div className="flex items-center justify-between gap-4">
+      <div className="p-6 sm:p-10 mb-6 bg-slate-800/60 rounded-[2rem] sm:rounded-[3rem] border border-slate-700 flex flex-col gap-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-20 bg-blue-600/5 blur-3xl -mr-10 -mt-10"></div>
+        <div className="flex items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="p-3 bg-slate-700 rounded-xl text-slate-300 transition-all hover:bg-slate-600 active:scale-95"><ArrowLeft className="w-6 h-6" /></button>
             <div>
@@ -624,16 +610,66 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 mb-8">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-          <input type="text" placeholder={`Buscar...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-2xl text-white outline-none font-bold placeholder-slate-500 shadow-inner focus:border-blue-500 transition-colors" />
+      {/* SISTEMA DE BUSCA MELHORADO */}
+      <div className="flex flex-col gap-5 mb-8 max-w-4xl mx-auto">
+        <div className="relative group">
+          <div className={`absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none transition-colors ${searchTerm ? 'text-blue-500' : 'text-slate-500'}`}>
+            <Search className="h-5 w-5" />
+          </div>
+          <input 
+            type="text" 
+            placeholder={`Pesquisar por tag, local, IP ou equipamento...`} 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            className="w-full pl-14 pr-14 py-5 bg-slate-800/80 backdrop-blur-xl border border-slate-700 rounded-3xl text-white outline-none font-bold placeholder-slate-600 shadow-2xl focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all"
+          />
+          {searchTerm && (
+            <button 
+                onClick={() => setSearchTerm('')} 
+                className="absolute inset-y-0 right-0 pr-6 flex items-center text-slate-500 hover:text-white transition-colors"
+            >
+                <div className="bg-slate-700/50 p-1.5 rounded-lg hover:bg-slate-700">
+                    <X className="h-4 w-4" />
+                </div>
+            </button>
+          )}
+        </div>
+        
+        {/* Indicador de resultados */}
+        <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-3">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
+                    {filteredItems.length} {filteredItems.length === 1 ? 'Resultado' : 'Resultados'}
+                </span>
+                {searchTerm && (
+                    <span className="text-[9px] font-bold text-blue-400/80 italic">
+                        Filtrado por: "{searchTerm}"
+                    </span>
+                )}
+            </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
-        {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} onDelete={quickDelete} onEdit={quickEdit} searchHighlight={searchTerm} />)}
-      </div>
+      {filteredItems.length > 0 ? (
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
+          {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} onDelete={quickDelete} onEdit={quickEdit} searchHighlight={searchTerm} />)}
+        </div>
+      ) : (
+        /* Estado Vazio Aprimorado */
+        <div className="py-20 flex flex-col items-center justify-center text-center animate-fadeIn">
+            <div className="p-8 bg-slate-800/40 rounded-full border border-slate-700 mb-6 group transition-all hover:scale-110">
+                <FilterX className="w-16 h-16 text-slate-600 group-hover:text-blue-500 transition-colors" />
+            </div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Nenhum ativo encontrado</h3>
+            <p className="text-slate-500 text-sm max-w-xs leading-relaxed font-medium">Não encontramos registros para "<span className="text-slate-300 font-bold">{searchTerm}</span>". Tente termos menos específicos.</p>
+            <button 
+                onClick={() => setSearchTerm('')} 
+                className="mt-8 px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl border border-slate-700 text-[10px] font-black uppercase tracking-widest transition-all"
+            >
+                Limpar Busca
+            </button>
+        </div>
+      )}
 
       <button onClick={() => setIsModalOpen(true)} className={`fixed bottom-6 right-6 w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-[0_20px_50px_rgba(8,_112,_184,_0.7)] z-40 bg-gradient-to-r ${config.gradient} hover:scale-110 active:scale-90 transition-all cursor-pointer`}><Plus className="w-8 h-8" /></button>
 
@@ -655,48 +691,52 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                 {groupKey === 'painel' ? (
                     <>
                         <div className="space-y-1">
-                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Tag do Painel</label>
+                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest">1. Tag do Painel</label>
                            <input type="text" placeholder="Ex: PNL-01" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase focus:border-blue-500 transition-colors" />
                         </div>
                         <div className="grid grid-cols-1 gap-2">
                            {['switch1', 'switch2', 'switch3'].map((sw, i) => (
                              <div key={sw} className="space-y-1">
-                                <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Switch {i+1}</label>
+                                <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest">{i + 2}. Switch {i+1}</label>
                                 <input type="text" placeholder={`Porta/Link`} value={formData[sw]} onChange={e => setFormData({...formData, [sw]: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono focus:border-blue-500 transition-colors" />
                              </div>
                            ))}
                         </div>
                         <div className="space-y-1">
-                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Local</label>
+                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest">5. Local Selecionável</label>
                            <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold focus:border-blue-500 transition-colors">
                               <option value="">Selecione o Local...</option>
                               {Object.keys(SYSTEM_DATA).map(loc => <option key={loc} value={loc}>{loc}</option>)}
                               <option value="NOVO">+ ADICIONAR NOVO LOCAL</option>
                            </select>
-                           {formData.local === "NOVO" && <input type="text" placeholder="Digite o novo local" value={formData.customLocal} onChange={e => setFormData({...formData, customLocal: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold shadow-xl" />}
+                           {formData.local === "NOVO" && <input type="text" placeholder="Digite o novo local" value={formData.customLocal} onChange={e => setFormData({...formData, customLocal: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold shadow-xl uppercase" />}
                         </div>
                         <div className="space-y-1">
-                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Equipamento</label>
+                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest">6. Equipamento</label>
                            <select disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold disabled:opacity-40 focus:border-blue-500 transition-colors">
                               <option value="">Selecione o Equipamento...</option>
                               {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                               <option value="NOVO">+ ADICIONAR NOVO EQUIPAMENTO</option>
                            </select>
-                           {formData.equipamento === "NOVO" && <input type="text" placeholder="Digite o novo equipamento" value={formData.customEquipamento} onChange={e => setFormData({...formData, customEquipamento: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold shadow-xl" />}
+                           {formData.equipamento === "NOVO" && <input type="text" placeholder="Digite o novo equipamento" value={formData.customEquipamento} onChange={e => setFormData({...formData, customEquipamento: e.target.value})} className="w-full px-4 py-3 bg-slate-900 border border-blue-500/50 rounded-xl text-white text-sm mt-2 outline-none font-bold shadow-xl uppercase" />}
+                        </div>
+                        <div className="space-y-1">
+                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest flex items-center gap-2"><MessageSquare className="w-2.5 h-2.5" /> 7. Observações (OBS)</label>
+                           <textarea placeholder="Notas adicionais..." value={formData.obs} onChange={e => setFormData({...formData, obs: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold focus:border-blue-500 transition-colors min-h-[80px] resize-none" />
                         </div>
                     </>
                 ) : (
                     <>
                         <div className="space-y-1">
-                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Tag do Ativo</label>
+                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest">Tag do Ativo</label>
                            <input type="text" placeholder="Ex: CTV-01" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold uppercase focus:border-blue-500 transition-colors" />
                         </div>
                         <div className="space-y-1">
-                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1">Localização</label>
-                           <input type="text" placeholder="Ex: Sala Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold focus:border-blue-500 transition-colors" />
+                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest">Localização</label>
+                           <input type="text" placeholder="Ex: Sala Técnica" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-bold focus:border-blue-500 transition-colors uppercase" />
                         </div>
                         <div className="space-y-1">
-                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1">IP / ID</label>
+                           <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-widest">IP / ID</label>
                            <input type="text" placeholder="Ex: 10.0.0.1" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm outline-none font-mono focus:border-blue-500 transition-colors" />
                         </div>
                     </>
