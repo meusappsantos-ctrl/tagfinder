@@ -1,5 +1,7 @@
+
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+// Import getFirestore as a named member from firebase/firestore
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
