@@ -1,8 +1,10 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-// Import getFirestore as a named member from firebase/firestore
-import { getFirestore } from "firebase/firestore";
+// Use a more robust import method to avoid resolution issues with firestore exports
+import * as firestore from "firebase/firestore";
+
+const { getFirestore } = firestore as any;
 
 const firebaseConfig = {
   apiKey: "AIzaSyDbZwrKoVd1iaoZRfquW1L4JA78t19D4K8",

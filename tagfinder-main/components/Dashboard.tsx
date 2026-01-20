@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, signOut } from 'firebase/auth';
-// Fix: Import named members directly from firebase/firestore to avoid resolution issues
-import { 
+// Use a more robust import method to avoid resolution issues with firestore exports
+import * as firestore from 'firebase/firestore';
+
+const { 
   collection, 
   query, 
   orderBy, 
@@ -13,7 +15,8 @@ import {
   doc, 
   writeBatch,
   Timestamp
-} from 'firebase/firestore';
+} = firestore as any;
+
 import { auth, db } from '../services/firebase';
 import { 
   LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, 
@@ -36,7 +39,7 @@ interface GroupItem {
   data?: Record<string, any>; 
   userId: string;
   userEmail: string;
-  createdAt: Timestamp | null;
+  createdAt: any | null; // Changed to any to avoid resolution issues with Timestamp type
   groupType?: GroupType;
 }
 
@@ -203,7 +206,7 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
             >
               <Trash2 size={16} />
             </button>
-            <div className={`p-2 rounded-lg ${hasGeo || isDownload ? (isDownload ? 'bg-cyan-500/10 text-cyan-500' : 'bg-emerald-500/10 text-emerald-500') : 'bg-slate-700 text-slate-500'}`}>
+            <div className={`p-2 rounded-lg ${hasGeo || isDownload ? (isDownload ? 'bg-cyan-500/10 text-cyan-500' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-slate-700 text-slate-500'}`}>
               {isDownload ? <FileText size={14} /> : <MapPin size={14} />}
             </div>
           </div>
@@ -430,6 +433,27 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
             <form onSubmit={handleSave} className="p-6 sm:p-8 space-y-6">
               {groupKey === 'painel' ? (
                 <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Tag do Painel</label>
+                    <input type="text" placeholder="Ex: vc-1080ks-13.06" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black outline-none focus:border-blue-500 transition-all uppercase" />
+                  </div>
+
+                  {/* Campos de Switch Restaurados e Reposicionados logo abaixo da Tag */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Switch 1</label>
+                      <input type="text" placeholder="IP/TAG" value={formData.switch1} onChange={e => setFormData({...formData, switch1: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white text-[10px] font-black outline-none focus:border-blue-500 transition-all uppercase" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Switch 2</label>
+                      <input type="text" placeholder="IP/TAG" value={formData.switch2} onChange={e => setFormData({...formData, switch2: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white text-[10px] font-black outline-none focus:border-blue-500 transition-all uppercase" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Switch 3</label>
+                      <input type="text" placeholder="IP/TAG" value={formData.switch3} onChange={e => setFormData({...formData, switch3: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white text-[10px] font-black outline-none focus:border-blue-500 transition-all uppercase" />
+                    </div>
+                  </div>
+
                   <div className="space-y-3">
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2"><MapPin size={12} /> Sincronização GPS</label>
                     <button type="button" onClick={handleGetLocation} className="w-full py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-[9px] font-black uppercase text-blue-400 flex items-center justify-center gap-3 active:scale-95 transition-all">
@@ -438,10 +462,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                     </button>
                     {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Tag do Painel</label>
-                    <input type="text" placeholder="Ex: vc-1080ks-13.06" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black outline-none focus:border-blue-500 transition-all uppercase" />
-                  </div>
+
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Local / Sistema</label>
                     <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black uppercase outline-none focus:border-blue-500 appearance-none cursor-pointer">
@@ -458,6 +479,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                       <option value="NOVO">+ NOVO ATIVO</option>
                     </select>
                   </div>
+
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2"><MessageSquare size={12} /> Observações</label>
                     <textarea placeholder="..." value={formData.obs} onChange={e => setFormData({...formData, obs: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-bold outline-none focus:border-blue-500 min-h-[100px]" />
