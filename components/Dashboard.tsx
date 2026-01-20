@@ -81,6 +81,13 @@ const isKeyVisible = (k: string) => {
   return !key.includes('__EMPTY') && !key.includes('GEOLOCALIZAÇÃO') && !key.includes('LINK MAPS') && k.trim() !== "";
 };
 
+const getDriveFileId = (url: string) => {
+  if (!url) return null;
+  const regex = /[-\w]{25,}/;
+  const match = url.match(regex);
+  return match ? match[0] : null;
+};
+
 const HighlightedText: React.FC<{ text: string; highlight: string; className?: string }> = ({ text, highlight, className = "" }) => {
   if (!highlight.trim()) return <span className={className}>{text}</span>;
   const terms = highlight.toLowerCase().split(/\s+/).filter(t => t.length > 0);
@@ -179,8 +186,8 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
 const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; onDelete: (id: string) => void; searchHighlight: string; }> = ({ item, config, onSelect, onDelete, searchHighlight }) => {
   const data = item.data || {};
   const isPainel = config.id === 'painel';
-  const isTW = config.id === 'tw_local';
   const isDownload = config.id === 'downloads';
+  const isTW = config.id === 'tw_local';
   const tagValue = cleanTagName(data["Tag"] || data["Nome"] || item.content.replace(/^Item:\s*/i, ''));
   const hasGeo = !!data["Geolocalização"];
 
@@ -192,19 +199,169 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
             <HighlightedText text={tagValue} highlight={searchHighlight} />
           </h3>
           <div className="flex items-center gap-1">
-            <button onClick={(e) => { e.stopPropagation(); if(confirm("Deseja excluir?")) onDelete(item.id); }} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg"><Trash2 size={16} /></button>
-            <div className={`p-2 rounded-lg ${hasGeo || isDownload ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}><MapPin size={14} /></div>
+            <button onClick={(e) => { e.stopPropagation(); if(confirm("Deseja excluir?")) onDelete(item.id); }} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={16} /></button>
+            <div className={`p-2 rounded-lg ${hasGeo || isDownload ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>{isDownload ? <FileText size={14} /> : <MapPin size={14} />}</div>
           </div>
         </div>
+
         <div className="flex items-center gap-2 text-slate-400 bg-slate-900/30 px-3 py-1.5 rounded-lg border border-white/5">
           <span className="text-[9px] font-black uppercase"><HighlightedText text={data["Local"] || data["Categoria"] || "S/ LOCAL"} highlight={searchHighlight} /></span>
         </div>
-        <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-2 border-t border-white/5 uppercase mt-auto">
-           <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${hasGeo ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></div>{config.label}</div>
-           <span>{hasGeo ? 'GPS OK' : 'SEM GPS'}</span>
+
+        {isPainel && (
+          <div className="space-y-2 mt-1 animate-fadeIn">
+            {data["Equipamento"] && (
+              <div className="px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded text-[8px] text-orange-400 font-black uppercase tracking-tighter truncate flex items-center gap-1.5 shadow-sm">
+                <Cpu size={10} />
+                <HighlightedText text={data["Equipamento"]} highlight={searchHighlight} />
+              </div>
+            )}
+            <div className="flex flex-wrap gap-1">
+              {['Switch1', 'Switch2', 'Switch3'].map(swKey => data[swKey] && (
+                <div key={swKey} className="flex items-center gap-1.5 px-2 py-1 bg-slate-700/40 rounded-lg text-[7px] text-slate-300 font-black border border-white/5 shadow-inner">
+                  <Signal size={9} className="text-blue-400" />
+                  <span className="opacity-50 uppercase tracking-tighter">{swKey.replace('Switch', 'SW')}:</span>
+                  <HighlightedText text={data[swKey]} highlight={searchHighlight} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!isPainel && !isDownload && !isTW && data["IP / Equipamento"] && (
+           <div className="px-3 py-2 bg-blue-500/5 border border-blue-500/10 rounded-xl text-[9px] text-blue-300 font-mono flex items-center gap-2">
+              <Database size={12} className="text-blue-500" />
+              <span className="truncate tracking-widest uppercase"><HighlightedText text={data["IP / Equipamento"]} highlight={searchHighlight} /></span>
+           </div>
+        )}
+
+        <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-2 border-t border-white/5 uppercase mt-auto tracking-widest">
+           <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${hasGeo || isDownload ? (isDownload ? 'bg-cyan-500' : 'bg-emerald-500 animate-pulse') : 'bg-slate-600'}`}></div>{config.label}</div>
+           <span>{isDownload ? 'NUVEM OK' : (hasGeo ? 'GPS OK' : 'SEM GPS')}</span>
         </div>
       </div>
     </div>
+  );
+};
+
+const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; user: User; onClose: () => void; onDelete: (id: string) => void; }> = ({ item, groupKey, config, user, onClose, onDelete }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editData, setEditData] = useState<Record<string, any>>(() => {
+    const filtered: Record<string, any> = {};
+    Object.entries(item.data || {}).forEach(([k, v]) => { if (isKeyVisible(k)) filtered[k] = v; });
+    return filtered;
+  });
+  const [location, setLocation] = useState<{lat: number, lng: number} | null>(() => {
+     if (item.data?.["Geolocalização"]) {
+         const parts = String(item.data["Geolocalização"]).split(',');
+         if (parts.length === 2) return { lat: parseFloat(parts[0]), lng: parseFloat(parts[1]) };
+     }
+     return null;
+  });
+
+  const isDownload = groupKey === 'downloads';
+  const originalLink = editData["Link"] || item.data?.["Link"] || "";
+  const driveId = getDriveFileId(originalLink);
+  
+  const previewUrl = driveId ? `https://drive.google.com/file/d/${driveId}/preview` : null;
+  const directDownloadUrl = driveId ? `https://drive.google.com/uc?export=download&id=${driveId}` : originalLink;
+
+  const handleSave = async () => {
+      setIsSaving(true);
+      try {
+          const finalData = { ...editData };
+          if (location && !isDownload) {
+              finalData["Geolocalização"] = `${location.lat.toFixed(7)}, ${location.lng.toFixed(7)}`;
+              finalData["Link Maps"] = `https://maps.google.com/?q=${location.lat},${location.lng}`;
+          }
+          await updateDoc(doc(db, groupKey, item.id), { data: finalData, content: (finalData["Tag"] || finalData["Nome"]) ? `Item: ${finalData["Tag"] || finalData["Nome"]}` : item.content });
+          setIsEditing(false);
+      } catch (e) { alert("ERRO AO SALVAR."); } finally { setIsSaving(false); }
+  };
+
+  return (
+      <div className="fixed inset-0 z-[300] bg-slate-900 overflow-y-auto animate-fadeIn flex flex-col">
+          <div className={`p-6 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-20 shadow-xl`}>
+              <div className="flex items-center gap-4">
+                <button onClick={onClose} className="p-2 bg-white/20 rounded-xl active:scale-95 transition-all shadow-lg"><ArrowLeft size={24} /></button>
+                <div><h2 className="font-black uppercase truncate max-w-[200px] leading-tight">{isEditing ? "EDITAR" : (editData["Tag"] || editData["Nome"] || "DETALHES")}</h2><span className="text-[9px] opacity-60 tracking-widest uppercase font-black">{config.label}</span></div>
+              </div>
+              <div className="flex gap-2">
+                {!isEditing ? (
+                  <button onClick={() => setIsEditing(true)} className="px-5 py-2.5 bg-white/20 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 active:scale-95 transition-all shadow-lg"><Edit size={16} /> EDITAR</button>
+                ) : <button onClick={() => setIsEditing(false)} className="p-3 bg-white/10 rounded-xl shadow-lg active:scale-90"><X size={20} /></button>}
+              </div>
+          </div>
+          
+          <div className="flex-1 p-6 sm:p-10 space-y-10 max-w-5xl mx-auto w-full pb-20">
+             {isDownload && (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                       <button onClick={() => window.open(originalLink, '_blank')} className="p-6 bg-cyan-600 hover:bg-cyan-500 text-white rounded-3xl flex flex-col items-center justify-center gap-2 font-black uppercase text-xs shadow-2xl transition-all active:scale-95 group">
+                          <ExternalLink size={24} className="group-hover:scale-110 transition-transform" /> ABRIR NO DRIVE
+                       </button>
+                       <button onClick={() => window.open(directDownloadUrl, '_blank')} className="p-6 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-3xl flex flex-col items-center justify-center gap-2 font-black uppercase text-xs shadow-2xl transition-all active:scale-95 group">
+                          <FileDown size={24} className="group-hover:translate-y-1 transition-transform" /> DOWNLOAD DIRETO
+                       </button>
+                    </div>
+                    {previewUrl && !isEditing ? (
+                       <div className="space-y-4">
+                          <div className="flex items-center justify-between px-2">
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Eye size={14} className="text-cyan-500" /> Pré-visualização</h4>
+                          </div>
+                          <div className="w-full aspect-[4/3] sm:aspect-video bg-slate-950 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl ring-1 ring-white/5">
+                             <iframe src={previewUrl} className="w-full h-full border-none" allow="autoplay; encrypted-media"></iframe>
+                          </div>
+                       </div>
+                    ) : !isEditing && (
+                      <div className="p-10 text-center bg-slate-800/40 rounded-3xl border border-dashed border-slate-700 opacity-50">
+                        <FileText size={48} className="mx-auto mb-4" />
+                        <p className="text-[10px] font-black uppercase">Visualização Indisponível</p>
+                      </div>
+                    )}
+                </div>
+             )}
+
+             {!isDownload && location && (
+               <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 shadow-xl space-y-4 ring-1 ring-white/5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-[10px] font-black text-slate-500 uppercase mb-1 tracking-widest">Localização Técnica</h4>
+                      <p className="text-sm font-mono text-emerald-400 font-black tracking-tighter">{location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                       <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`, '_blank')} className="p-3 bg-emerald-600 text-white rounded-xl active:scale-90 transition-all shadow-lg"><Navigation size={20}/></button>
+                       <button onClick={() => window.open(`https://maps.google.com/?q=${location.lat},${location.lng}`, '_blank')} className="p-3 bg-blue-600 text-white rounded-xl active:scale-90 transition-all shadow-lg"><MapPin size={20}/></button>
+                    </div>
+                  </div>
+                  <MiniMapPreview lat={location.lat} lng={location.lng} tag={editData["Tag"]} />
+               </div>
+             )}
+
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(editData).map(([k, v]) => isKeyVisible(k) && (
+                  <div key={k} className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700/60 shadow-lg group hover:border-slate-500/50 transition-all">
+                    <h5 className="text-[9px] font-black text-slate-600 uppercase mb-3 opacity-70 tracking-widest">{k}</h5>
+                    {isEditing ? (
+                        <input type="text" value={String(v)} onChange={(e) => setEditData({ ...editData, [k]: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm outline-none font-bold uppercase focus:border-blue-500 transition-all shadow-inner" />
+                    ) : (
+                        <p className="text-white font-black text-sm uppercase break-all leading-tight">{String(v)}</p>
+                    )}
+                  </div>
+                ))}
+             </div>
+
+             {isEditing && (
+                <div className="grid grid-cols-2 gap-4 pt-10 pb-10">
+                    <button onClick={() => { if(confirm("Excluir?")) { onDelete(item.id); onClose(); } }} className="py-5 rounded-2xl bg-red-600/10 text-red-500 border border-red-500/20 font-black uppercase text-[10px] active:scale-95 transition-all shadow-lg">EXCLUIR REGISTRO</button>
+                    <button onClick={handleSave} disabled={isSaving} className={`py-5 rounded-2xl text-white font-black uppercase text-[10px] ${config.color} shadow-2xl flex justify-center items-center gap-3 active:scale-95 transition-all`}>
+                      {isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16} />} SALVAR ALTERAÇÕES
+                    </button>
+                </div>
+             )}
+          </div>
+      </div>
   );
 };
 
@@ -214,13 +371,11 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
   const [items, setItems] = useState<GroupItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<GroupItem | null>(initialSelectedItem || null);
   const [loading, setLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<any>({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', obs: '', desc: '', link: '', nome: '' });
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const q = query(collection(db, groupKey), orderBy('createdAt', 'desc'));
@@ -245,7 +400,10 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
           data = { "Tag": formData.tag, "Local": formData.local, "Switch1": formData.switch1, "Switch2": formData.switch2, "Switch3": formData.switch3, "Equipamento": formData.equipamento, "Observação": formData.obs };
       } else if (groupKey === 'downloads') {
           data = { "Nome": formData.nome, "Categoria": formData.local, "Link": formData.link, "Descrição": formData.desc };
+      } else if (groupKey === 'tw_local') {
+          data = { "Tag": formData.tag, "Local": formData.local, "Descrição": formData.desc };
       } else {
+          // CTV, Telecom, Embarcados
           data = { "Tag": formData.tag, "Local": formData.local, "IP / Equipamento": formData.ip };
       }
 
@@ -272,122 +430,130 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     return s.split(/\s+/).every(t => searchable.includes(t));
   });
 
+  if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => setSelectedItem(null)} onDelete={handleDeleteItem} />;
+
   return (
-    <div className="pb-24">
-      <div className="p-6 sm:p-10 mb-8 bg-slate-800/60 rounded-[2.5rem] border border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-6">
+    <div className="pb-24 animate-fadeIn">
+      <div className="p-6 sm:p-10 mb-8 bg-slate-800/60 rounded-[2.5rem] border border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-6 shadow-2xl ring-1 ring-white/5">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-3 bg-slate-700 rounded-xl text-slate-300"><ArrowLeft size={24} /></button>
-          <div>
-            <span className="text-[9px] uppercase font-black text-slate-500">{config.label}</span>
-            <h2 className="text-2xl sm:text-4xl font-black text-white">{groupKey === 'downloads' ? 'Arquivos' : 'Inventário'}</h2>
-          </div>
+          <button onClick={onBack} className="p-3 bg-slate-700 rounded-xl text-slate-300 hover:bg-slate-600 transition-all active:scale-95 shadow-lg"><ArrowLeft size={24} /></button>
+          <div><span className="text-[9px] uppercase font-black text-slate-500 tracking-widest">{config.label}</span><h2 className="text-2xl sm:text-4xl font-black text-white tracking-tighter uppercase leading-none">{groupKey === 'downloads' ? 'Arquivos Técnicos' : 'Inventário de Ativos'}</h2></div>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className={`px-6 py-3 rounded-xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] flex items-center gap-2 shadow-xl`}>
+        <button onClick={() => setIsModalOpen(true)} className={`px-6 py-3 rounded-xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all`}>
           <Plus size={16} /> Novo Registro
         </button>
       </div>
 
-      <div className="relative mb-8 max-w-4xl mx-auto">
-        <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
-        <input type="text" placeholder={`Buscar em ${config.label}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 pr-6 py-5 bg-slate-800/80 border border-slate-700 rounded-3xl text-white outline-none" />
+      <div className="relative mb-8 max-w-4xl mx-auto px-4 sm:px-0">
+        <Search className="absolute left-10 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
+        <input type="text" placeholder={`Buscar em ${config.label}...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 pr-6 py-5 bg-slate-800/80 backdrop-blur-xl border border-slate-700 rounded-3xl text-white outline-none font-bold placeholder-slate-600 shadow-2xl focus:border-blue-500/50 transition-all shadow-inner" />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onDelete={handleDeleteItem} onSelect={() => setSelectedItem(item)} searchHighlight={searchTerm} />)}
-      </div>
+      {filteredItems.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 px-4 sm:px-0">
+          {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onDelete={handleDeleteItem} onSelect={() => setSelectedItem(item)} searchHighlight={searchTerm} />)}
+        </div>
+      ) : (
+        <div className="py-20 flex flex-col items-center justify-center text-center opacity-50"><FilterX size={64} className="mb-4 text-slate-700" /><h3 className="font-black uppercase tracking-tight text-white">Nenhum item encontrado</h3></div>
+      )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-[250] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-md">
-          <div className="bg-slate-800 w-full max-w-lg sm:rounded-[2.5rem] border border-slate-600 overflow-y-auto max-h-[90vh]">
-            <div className={`p-6 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10`}><h3 className="font-black uppercase">Novo Registro</h3><button onClick={() => setIsModalOpen(false)}><X size={20} /></button></div>
+        <div className="fixed inset-0 z-[250] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-800 w-full max-w-lg h-[95vh] sm:h-auto sm:max-h-[90vh] sm:rounded-[2.5rem] border-t sm:border border-slate-600 overflow-y-auto shadow-2xl animate-slideUp ring-1 ring-white/10">
+            <div className={`p-6 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-10 shadow-xl`}>
+              <h3 className="font-black uppercase tracking-widest">Cadastrar {config.label}</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 bg-white/10 rounded-lg active:scale-90 transition-all shadow-lg"><X size={20} /></button>
+            </div>
             <form onSubmit={handleSave} className="p-6 sm:p-8 space-y-6">
+              
+              {groupKey !== 'downloads' && (
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2 tracking-widest"><MapPin size={12} /> Sincronização GPS</label>
+                  <button type="button" onClick={handleGetLocation} className="w-full py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-[9px] font-black uppercase text-blue-400 flex items-center justify-center gap-3 active:scale-95 transition-all shadow-inner">
+                    {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
+                    {location ? "GPS ATUALIZADO" : "ATIVAR CAPTURA GPS"}
+                  </button>
+                  {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
+                </div>
+              )}
+
               {groupKey === 'painel' ? (
                 <div className="space-y-6">
-                  {/* GPS NO TOPO */}
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2"><MapPin size={12} /> Sincronização GPS</label>
-                    <button type="button" onClick={handleGetLocation} className="w-full py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-[9px] font-black uppercase text-blue-400 flex items-center justify-center gap-3">
-                      {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
-                      {location ? "GPS OK" : "ATIVAR GPS"}
-                    </button>
-                    {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 tracking-widest">Tag do Painel</label>
+                    <input type="text" placeholder="Ex: vc-1080ks" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Tag do Painel</label>
-                    <input type="text" placeholder="Ex: vc-1080ks" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black outline-none uppercase" />
-                  </div>
-
-                  {/* SWITCHES LOGO ABAIXO DA TAG */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Switch 1</label>
-                      <input type="text" placeholder="IP/TAG" value={formData.switch1} onChange={e => setFormData({...formData, switch1: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white text-[10px] font-black outline-none uppercase" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Switch 2</label>
-                      <input type="text" placeholder="IP/TAG" value={formData.switch2} onChange={e => setFormData({...formData, switch2: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white text-[10px] font-black outline-none uppercase" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Switch 3</label>
-                      <input type="text" placeholder="IP/TAG" value={formData.switch3} onChange={e => setFormData({...formData, switch3: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white text-[10px] font-black outline-none uppercase" />
-                    </div>
+                    {['1', '2', '3'].map(n => (
+                      <div key={n} className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-500 uppercase ml-2 tracking-widest">Switch {n}</label>
+                        <input type="text" placeholder="IP/TAG" value={formData[`switch${n}`]} onChange={e => setFormData({...formData, [`switch${n}`]: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white text-[10px] font-black outline-none focus:border-blue-500 shadow-inner uppercase" />
+                      </div>
+                    ))}
                   </div>
-
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Local / Sistema</label>
-                    <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black uppercase outline-none">
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 tracking-widest">Local / Sistema</label>
+                    <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black uppercase outline-none focus:border-blue-500 cursor-pointer shadow-inner">
                       <option value="">Selecione Local...</option>
                       {Object.keys(SYSTEM_DATA).map(loc => <option key={loc} value={loc}>{loc}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Equipamento</label>
-                    <input type="text" placeholder="Equipamento" value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black outline-none uppercase" />
+                    <label className="text-[9px] font-black text-slate-500 uppercase ml-2 tracking-widest">Ativo Vinculado</label>
+                    <input type="text" placeholder="Ex: vc-1080" value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black outline-none focus:border-blue-500 shadow-inner uppercase" />
+                  </div>
+                </div>
+              ) : groupKey === 'downloads' ? (
+                <div className="space-y-5">
+                   <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase tracking-widest">Título do Arquivo</label>
+                      <input type="text" placeholder="Manual Técnico" required value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white outline-none font-black uppercase shadow-inner" />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase tracking-widest">Link Google Drive</label>
+                      <input type="url" placeholder="https://drive.google.com/..." required value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white outline-none font-mono text-[10px] shadow-inner" />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase tracking-widest">Categoria</label>
+                      <input type="text" placeholder="Ex: Manuais" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white outline-none font-black uppercase shadow-inner" />
+                  </div>
+                </div>
+              ) : groupKey === 'tw_local' ? (
+                <div className="space-y-5">
+                   <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase tracking-widest">Tag / Marco TW</label>
+                      <input type="text" placeholder="Ex: TW-001" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white outline-none font-black uppercase shadow-inner" />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase tracking-widest">Área / Sistema</label>
+                      <input type="text" placeholder="Britagem" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white outline-none font-black uppercase shadow-inner" />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase tracking-widest">Informações Adicionais</label>
+                      <textarea placeholder="Localização física..." value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white outline-none font-bold text-xs shadow-inner min-h-[80px]" />
                   </div>
                 </div>
               ) : (
                 <div className="space-y-5">
-                   <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase">Identificador</label>
-                      <input type="text" required value={formData.tag || formData.nome} onChange={e => groupKey === 'downloads' ? setFormData({...formData, nome: e.target.value}) : setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white outline-none" />
+                   <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase tracking-widest">Tag do Equipamento</label>
+                      <input type="text" placeholder="TAG-1080" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white outline-none font-black uppercase shadow-inner" />
                   </div>
-                  <button type="button" onClick={handleGetLocation} className="w-full py-4 bg-slate-700 rounded-xl text-[10px] font-black uppercase text-blue-400 flex items-center justify-center gap-2">
-                    <Crosshair size={14}/> CAPTURAR GPS
-                  </button>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase tracking-widest">IP / Endereço Técnico</label>
+                      <input type="text" placeholder="10.10.x.x" value={formData.ip} onChange={e => setFormData({...formData, ip: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white outline-none font-mono text-xs uppercase shadow-inner" />
+                  </div>
+                  <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase tracking-widest">Localização Geográfica</label>
+                      <input type="text" placeholder="Sistema 01" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white outline-none font-black uppercase shadow-inner" />
+                  </div>
                 </div>
               )}
-              <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] shadow-2xl`}>
-                 {loading ? <Loader2 className="animate-spin" size={20}/> : "SALVAR"}
+              
+              <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] tracking-widest shadow-2xl transition-all active:scale-95 ring-1 ring-white/10`}>
+                 {loading ? <Loader2 className="animate-spin" size={20}/> : "FINALIZAR CADASTRO"}
               </button>
             </form>
-          </div>
-        </div>
-      )}
-
-      {selectedItem && (
-        <div className="fixed inset-0 z-[300] bg-slate-900 overflow-y-auto">
-          <div className={`p-6 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center`}>
-            <button onClick={() => setSelectedItem(null)} className="p-2 bg-white/20 rounded-xl"><ArrowLeft size={24} /></button>
-            <h2 className="font-black uppercase">{selectedItem.data?.["Tag"] || "Detalhes"}</h2>
-            <button onClick={() => { if(confirm("Excluir?")) { handleDeleteItem(selectedItem.id); setSelectedItem(null); } }} className="p-2 bg-red-500/20 rounded-xl"><Trash2 size={24} /></button>
-          </div>
-          <div className="p-6 space-y-8">
-             {selectedItem.data?.["Geolocalização"] && (
-               <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700">
-                  <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2">Localização</h4>
-                  <p className="text-sm font-mono text-emerald-400">{selectedItem.data["Geolocalização"]}</p>
-                  <button onClick={() => window.open(selectedItem.data?.["Link Maps"], '_blank')} className="mt-4 w-full py-4 bg-blue-600 rounded-2xl font-black text-[10px] uppercase">Ver no Google Maps</button>
-               </div>
-             )}
-             <div className="grid grid-cols-1 gap-4">
-                {Object.entries(selectedItem.data || {}).map(([k, v]) => isKeyVisible(k) && (
-                  <div key={k} className="bg-slate-800/40 p-4 rounded-xl border border-slate-700">
-                    <h5 className="text-[8px] font-black text-slate-600 uppercase mb-1">{k}</h5>
-                    <p className="text-white font-bold uppercase">{String(v)}</p>
-                  </div>
-                ))}
-             </div>
           </div>
         </div>
       )}
@@ -417,27 +583,37 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   if (currentView !== 'home') return <div className="min-h-screen bg-slate-900 p-4 sm:p-12"><div className="max-w-7xl mx-auto"><GroupPage groupKey={currentView} user={user} onBack={() => setCurrentView('home')} /></div></div>;
 
   return (
-    <div className="min-h-screen bg-slate-900 p-6 sm:p-14 text-white flex flex-col">
+    <div className="min-h-screen bg-slate-900 p-6 sm:p-14 text-white flex flex-col relative overflow-hidden">
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/5 blur-[100px] rounded-full pointer-events-none"></div>
+      
       {isMapModalOpen && <GlobalMapModal items={allData} onClose={() => setIsMapModalOpen(false)} onSelectItem={() => {}} />}
-      <div className="max-w-6xl mx-auto w-full space-y-12 flex-1">
+      
+      <div className="max-w-6xl mx-auto w-full space-y-12 flex-1 relative z-10 animate-fadeIn">
         <header className="flex justify-between items-center">
-          <div><h1 className="text-3xl font-black uppercase leading-tight">Olá, <span className="text-blue-500">{user.email?.split('@')[0]}</span></h1></div>
-          <div className="flex gap-2">
-            <button onClick={() => setIsMapModalOpen(true)} className="p-4 bg-blue-600/10 text-blue-400 rounded-2xl border border-blue-500/20"><Globe size={22} /></button>
-            <button onClick={() => signOut(auth)} className="p-4 bg-slate-800 rounded-2xl text-slate-500"><LogOut size={22} /></button>
+          <div className="flex flex-col">
+            <h1 className="text-3xl font-black uppercase leading-tight tracking-tighter">Olá, <span className="text-blue-500">{user.email?.split('@')[0]}</span></h1>
+            <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1 opacity-70">SISTEMA TAGFINDER &bull; V1.5</p>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={() => setIsMapModalOpen(true)} className="p-4 bg-blue-600/10 text-blue-400 rounded-2xl border border-blue-500/20 hover:bg-blue-600 hover:text-white transition-all shadow-2xl active:scale-95"><Globe size={22} /></button>
+            <button onClick={() => signOut(auth)} className="p-4 bg-slate-800 rounded-2xl text-slate-500 hover:text-red-500 transition-all shadow-xl active:scale-95"><LogOut size={22} /></button>
           </div>
         </header>
+
         <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
           {Object.entries(groupsConfig).map(([key, group]) => (
-             <button key={key} onClick={() => setCurrentView(key as GroupType)} className="bg-slate-900/60 p-6 rounded-[2rem] border border-slate-800 flex flex-col items-start transition-all hover:bg-slate-800">
-               <div className={`w-12 h-12 rounded-2xl ${group.lightColor} ${group.textColor} flex items-center justify-center mb-6`}><group.icon size={28} /></div>
-               <h2 className="text-xs sm:text-lg font-black tracking-tighter uppercase">{group.label}</h2>
-               <div className={`flex items-center gap-2 font-black text-[7px] ${group.textColor} opacity-60 mt-2`}>Acessar <ArrowRight size={12} /></div>
+             <button key={key} onClick={() => setCurrentView(key as GroupType)} className="bg-slate-900/60 p-6 rounded-[2rem] border border-slate-800/80 flex flex-col items-start transition-all hover:bg-slate-800 hover:scale-105 active:scale-95 shadow-2xl group relative overflow-hidden ring-1 ring-white/5">
+               <div className="absolute top-0 right-0 p-12 bg-white/5 blur-3xl -mr-10 -mt-10 group-hover:bg-white/10 transition-all"></div>
+               <div className={`w-12 h-12 rounded-2xl ${group.lightColor} ${group.textColor} flex items-center justify-center mb-6 ring-4 ring-white/5 relative z-10 shadow-lg`}><group.icon size={28} /></div>
+               <h2 className="text-xs sm:text-lg font-black tracking-tighter uppercase leading-tight relative z-10 group-hover:text-blue-400 transition-colors">{group.label}</h2>
+               <div className={`flex items-center gap-2 font-black text-[7px] ${group.textColor} opacity-60 mt-2 uppercase tracking-widest relative z-10`}>Acessar <ArrowRight size={12} /></div>
              </button>
           ))}
         </section>
       </div>
-      <footer className="py-12 text-center opacity-40"><p className="text-[9px] font-black uppercase">TagFinder Enterprise &bull; 2024</p></footer>
+
+      <footer className="py-12 text-center opacity-40 mt-auto"><p className="text-[9px] font-black uppercase tracking-widest">TagFinder Enterprise &bull; 2024</p></footer>
     </div>
   );
 };
