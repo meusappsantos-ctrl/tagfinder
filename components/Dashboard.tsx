@@ -235,6 +235,13 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
            </div>
         )}
 
+        {isTW && (
+          <div className="px-3 py-2 bg-purple-500/5 border border-purple-500/10 rounded-xl text-[9px] text-purple-300 flex items-center gap-2">
+            <Locate size={12} className="text-purple-500" />
+            <span className="truncate tracking-widest uppercase"><HighlightedText text={data["Descrição"] || data["DESC"] || "S/ DESCRIÇÃO"} highlight={searchHighlight} /></span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-2 border-t border-white/5 uppercase mt-auto tracking-widest">
            <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${hasGeo || isDownload ? (isDownload ? 'bg-cyan-500' : 'bg-emerald-500 animate-pulse') : 'bg-slate-600'}`}></div>{config.label}</div>
            <span>{isDownload ? 'NUVEM OK' : (hasGeo ? 'GPS OK' : 'SEM GPS')}</span>
@@ -371,11 +378,13 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
   const [items, setItems] = useState<GroupItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<GroupItem | null>(initialSelectedItem || null);
   const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<any>({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', obs: '', desc: '', link: '', nome: '' });
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const q = query(collection(db, groupKey), orderBy('createdAt', 'desc'));
@@ -391,6 +400,66 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     );
   };
 
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+        try {
+            const wb = XLSX.read(evt.target?.result, { type: 'binary' });
+            const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            const batch = writeBatch(db);
+            data.forEach((row: any) => {
+                const keys = Object.keys(row);
+                // Mapeamento dinâmico inteligente
+                const tagKey = keys.find(k => ["TAG", "NOME", "IDENTIFICADOR", "ITEM"].includes(k.trim().toUpperCase()));
+                const localKey = keys.find(k => ["LOCAL", "AREA", "SISTEMA", "CATEGORIA"].includes(k.trim().toUpperCase()));
+                const descKey = keys.find(k => ["DESCRIÇÃO", "DESC", "OBS", "INFORMAÇÃO", "INFO"].includes(k.trim().toUpperCase()));
+                const latKey = keys.find(k => ["LATITUDE", "LAT"].includes(k.trim().toUpperCase()));
+                const lngKey = keys.find(k => ["LONGITUDE", "LONG", "LNG", "LON"].includes(k.trim().toUpperCase()));
+                
+                const rowTag = tagKey ? String(row[tagKey]) : "Item";
+                const rowLocal = localKey ? String(row[localKey]) : "S/ Local";
+                const rowDesc = descKey ? String(row[descKey]) : "";
+                
+                let itemData: any = { 
+                  "Tag": rowTag, 
+                  "Local": rowLocal 
+                };
+
+                // Adiciona descrição se for TW
+                if (groupKey === 'tw_local') {
+                   itemData["Descrição"] = rowDesc;
+                }
+
+                // Adiciona todos os outros campos originais
+                keys.forEach(k => { 
+                  if(!k.startsWith('__')) itemData[k] = String(row[k]); 
+                });
+
+                // Trata geolocalização se presente
+                if (latKey && lngKey && row[latKey] && row[lngKey]) {
+                   itemData["Geolocalização"] = `${row[latKey]}, ${row[lngKey]}`;
+                   itemData["Link Maps"] = `https://maps.google.com/?q=${row[latKey]},${row[lngKey]}`;
+                }
+
+                const newDocRef = doc(collection(db, groupKey));
+                batch.set(newDocRef, { 
+                  content: `Item: ${rowTag}`, 
+                  data: itemData, 
+                  userId: user.uid, 
+                  userEmail: user.email, 
+                  createdAt: serverTimestamp() 
+                });
+            });
+            await batch.commit();
+            alert(`IMPORTADO COM SUCESSO EM ${config.label}!`);
+        } catch (e) { alert("ERRO NA IMPORTAÇÃO. Verifique o formato do arquivo."); } finally { setImporting(false); if(fileInputRef.current) fileInputRef.current.value = ''; }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -403,7 +472,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
       } else if (groupKey === 'tw_local') {
           data = { "Tag": formData.tag, "Local": formData.local, "Descrição": formData.desc };
       } else {
-          // CTV, Telecom, Embarcados
           data = { "Tag": formData.tag, "Local": formData.local, "IP / Equipamento": formData.ip };
       }
 
@@ -439,9 +507,19 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
           <button onClick={onBack} className="p-3 bg-slate-700 rounded-xl text-slate-300 hover:bg-slate-600 transition-all active:scale-95 shadow-lg"><ArrowLeft size={24} /></button>
           <div><span className="text-[9px] uppercase font-black text-slate-500 tracking-widest">{config.label}</span><h2 className="text-2xl sm:text-4xl font-black text-white tracking-tighter uppercase leading-none">{groupKey === 'downloads' ? 'Arquivos Técnicos' : 'Inventário de Ativos'}</h2></div>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className={`px-6 py-3 rounded-xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all`}>
-          <Plus size={16} /> Novo Registro
-        </button>
+        <div className="flex gap-2">
+            {groupKey !== 'downloads' && (
+              <>
+                <input type="file" ref={fileInputRef} onChange={handleImportExcel} accept=".xlsx, .xls, .csv" className="hidden" />
+                <button onClick={() => fileInputRef.current?.click()} disabled={importing} className="px-5 py-3 rounded-xl text-slate-300 bg-slate-700/50 border border-slate-600 font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-slate-700 transition-all active:scale-95">
+                  {importing ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />} Importar Planilha
+                </button>
+              </>
+            )}
+            <button onClick={() => setIsModalOpen(true)} className={`px-6 py-3 rounded-xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all`}>
+              <Plus size={16} /> Novo Registro
+            </button>
+        </div>
       </div>
 
       <div className="relative mb-8 max-w-4xl mx-auto px-4 sm:px-0">
