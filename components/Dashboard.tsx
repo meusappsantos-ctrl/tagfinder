@@ -64,12 +64,81 @@ const groupsConfig = {
 };
 
 const normalizeText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-const cleanTagName = (tag: string) => (tag || "").replace(/^(Item|Tag|Ativo|ITEM|TW|Cam):\s*/gi, '').split('|')[0].trim();
+const cleanTagName = (tag: string) => (tag || "").replace(/^(Item|Tag|Ativo|ITEM|TW|Cam|Tag do Painel|Tag Switch|Tag da Câmera):\s*/gi, '').split('|')[0].trim();
+
+const getCoordinatesFromData = (data: any) => {
+  if (!data) return null;
+  // Busca por chaves comuns de geolocalização de forma case-insensitive
+  const geoKey = Object.keys(data).find(k => 
+    k.toLowerCase() === 'geolocalização' || 
+    k.toLowerCase() === 'coordinates' || 
+    k.toLowerCase() === 'geo' ||
+    k.toLowerCase() === 'lat/lng'
+  );
+  const geo = geoKey ? data[geoKey] : null;
+  if (geo) {
+    const parts = String(geo).split(',').map((p: string) => parseFloat(p.trim()));
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      return { lat: parts[0], lng: parts[1] };
+    }
+  }
+  return null;
+};
 
 const getDrivePreviewUrl = (url: string) => {
   if (!url) return null;
   const match = url.match(/(?:\/d\/|id=)([\w-]+)/);
   return match ? `https://drive.google.com/file/d/${match[1]}/preview` : null;
+};
+
+const MiniMapPreview: React.FC<{ lat: number; lng: number; color?: string }> = ({ lat, lng, color = '#3b82f6' }) => {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!mapRef.current || typeof L === 'undefined') return;
+
+    if (!mapInstance.current) {
+      mapInstance.current = L.map(mapRef.current, { 
+        zoomControl: false, 
+        attributionControl: false, 
+        dragging: true, 
+        scrollWheelZoom: true, 
+        touchZoom: true 
+      }).setView([lat, lng], 18);
+
+      L.tileLayer(GOOGLE_HYBRID_URL, { maxZoom: 22, maxNativeZoom: 20 }).addTo(mapInstance.current);
+
+      markerRef.current = L.circleMarker([lat, lng], { 
+        radius: 8, 
+        fillColor: color, 
+        color: '#ffffff', 
+        weight: 2, 
+        opacity: 1, 
+        fillOpacity: 1 
+      }).addTo(mapInstance.current);
+    } else {
+      mapInstance.current.setView([lat, lng], 18);
+      if (markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+      }
+    }
+
+    return () => {
+      if (mapInstance.current && !mapRef.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
+  }, [lat, lng, color]);
+
+  return (
+    <div className="w-full h-44 bg-slate-950 border border-slate-800 shadow-inner mt-2 relative group overflow-hidden">
+       <div ref={mapRef} className="absolute inset-0 z-0" />
+       <div className="absolute top-2 right-2 z-10 bg-slate-900/80 px-2 py-1 border border-slate-700 text-[7px] font-black text-white uppercase tracking-widest">Live View</div>
+    </div>
+  );
 };
 
 const ConfirmModal: React.FC<{ 
@@ -134,40 +203,73 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
 
   useEffect(() => {
     if (!mapRef.current || typeof L === 'undefined') return;
+    
+    // Inicialização do mapa com visualização padrão (Brasil)
     const map = L.map(mapRef.current, { zoomControl: false, maxZoom: 22 }).setView([-15.78, -47.92], 4);
     L.tileLayer(GOOGLE_HYBRID_URL, { maxZoom: 22, maxNativeZoom: 20, detectRetina: true }).addTo(map);
     layerGroupRef.current = L.layerGroup().addTo(map);
     mapInstance.current = map;
-    setTimeout(() => map.invalidateSize(), 400);
+
+    // Forçar atualização do tamanho do contêiner após renderização
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 400);
+
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
     if (!mapInstance.current || !layerGroupRef.current) return;
+    
     layerGroupRef.current.clearLayers();
     const bounds = L.latLngBounds([]);
     let hasGeo = false;
 
     items.forEach(item => {
-      const geo = item.data?.["Geolocalização"];
-      if (geo) {
-        const parts = geo.split(',').map((p: string) => parseFloat(p.trim()));
-        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-          const [lat, lng] = parts;
-          let color = '#3b82f6';
-          if (item.groupType === 'telecom') color = '#6366f1';
-          if (item.groupType === 'painel') color = '#f97316';
-          if (item.groupType === 'embarcados') color = '#10b981';
-          if (item.groupType === 'tw_local') color = '#a855f7';
-          if (item.groupType === 'downloads') color = '#06b6d4';
-          const marker = L.circleMarker([lat, lng], { radius: 8, fillColor: color, color: '#ffffff', weight: 2, opacity: 1, fillOpacity: 1 });
-          marker.bindTooltip(cleanTagName(item.data?.["Tag"] || item.data?.["Nome"] || "Item"), { permanent: true, direction: 'top', className: 'tag-label', offset: [0, -8] });
-          layerGroupRef.current.addLayer(marker);
-          bounds.extend([lat, lng]);
-          hasGeo = true;
-        }
+      const coords = getCoordinatesFromData(item.data);
+      if (coords) {
+        const { lat, lng } = coords;
+        let color = '#3b82f6';
+        if (item.groupType === 'telecom') color = '#6366f1';
+        if (item.groupType === 'painel') color = '#f97316';
+        if (item.groupType === 'embarcados') color = '#10b981';
+        if (item.groupType === 'tw_local') color = '#a855f7';
+        if (item.groupType === 'downloads') color = '#06b6d4';
+        
+        const tagName = cleanTagName(item.data?.["Tag"] || item.data?.["Tag Switch"] || item.data?.["Tag da Câmera"] || item.data?.["Tag do Painel"] || item.data?.["Nome"] || "Ativo");
+        
+        const marker = L.circleMarker([lat, lng], { 
+          radius: 8, 
+          fillColor: color, 
+          color: '#ffffff', 
+          weight: 2, 
+          opacity: 1, 
+          fillOpacity: 1 
+        });
+
+        marker.bindTooltip(tagName, { 
+          permanent: true, 
+          direction: 'top', 
+          className: 'tag-label', 
+          offset: [0, -8] 
+        });
+
+        marker.on('click', () => onSelectItem(item));
+        
+        layerGroupRef.current.addLayer(marker);
+        bounds.extend([lat, lng]);
+        hasGeo = true;
       }
     });
-    if (hasGeo) mapInstance.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+
+    if (hasGeo) {
+      mapInstance.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+    }
   }, [items]);
 
   return (
@@ -197,7 +299,7 @@ const ItemCard: React.FC<{
   const isPainel = config.id === 'painel';
   const isDownload = config.id === 'downloads';
   const tagValue = cleanTagName(data["Tag"] || data["Tag do Painel"] || data["Nome"] || data["Tag da Câmera"] || data["Tag Switch"] || item.content);
-  const hasGeo = !!data["Geolocalização"];
+  const hasGeo = !!getCoordinatesFromData(data);
 
   return (
     <div onClick={onSelect} className="group relative flex flex-col bg-slate-800/50 border border-slate-700 p-0 shadow-lg hover:bg-slate-800 hover:border-blue-500/50 transition-all cursor-pointer active:translate-x-1 active:translate-y-1 overflow-hidden">
@@ -282,6 +384,7 @@ const ItemDetail: React.FC<{
   };
 
   const showMetadata = isEditing || !isDownload;
+  const coords = getCoordinatesFromData(editData);
 
   return (
       <div className="fixed inset-0 z-[300] bg-slate-900 overflow-y-auto flex flex-col animate-fadeIn">
@@ -322,13 +425,13 @@ const ItemDetail: React.FC<{
                       {Object.entries(editData).map(([key, value]) => {
                         if (key.includes('__EMPTY')) return null;
                         if (!isEditing && (key === "Tag" || key === "Local Selecionável" || key === "Tag do Painel" || key === "Tag da Câmera" || key === "Tag Switch" || key === "Local de Instalação")) return null;
-                        if (key === "Geolocalização" || key === "Link Maps" || key === "Link" || key === "link") return null;
+                        if (key.toLowerCase() === "geolocalização" || key.toLowerCase() === "link maps" || key.toLowerCase() === "link") return null;
                         
                         return (
                           <div key={key} className="space-y-2">
                             <h5 className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{key}</h5>
                             {isEditing ? (
-                              <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-white font-bold text-sm outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
+                              <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-none px-3 py-2 text-white font-bold text-sm outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
                             ) : (
                               <p className="text-white font-black text-sm p-3 bg-slate-800/50 border border-slate-800 uppercase break-words">{String(value)}</p>
                             )}
@@ -339,9 +442,12 @@ const ItemDetail: React.FC<{
                 </div>
               )}
 
-              {!isDownload && editData["Geolocalização"] && (
+              {!isDownload && coords && (
                 <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8">
-                   <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${editData["Geolocalização"]}`, '_blank')} className="w-full py-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl">
+                   <div className="mb-4">
+                     <MiniMapPreview lat={coords.lat} lng={coords.lng} color={config.textColor.replace('text-', '#')} />
+                   </div>
+                   <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}`, '_blank')} className="w-full py-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl">
                       <Navigation size={18} /> Traçar Rota GPS
                    </button>
                 </div>
@@ -380,10 +486,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
-    const colls = ['ctv', 'telecom', 'embarcados', 'tw_local', 'downloads'];
+    // Adicionado 'painel' explicitamente na lista de coleções monitoradas globalmente
+    const colls = ['ctv', 'telecom', 'painel', 'embarcados', 'tw_local', 'downloads'];
     const unsubs = colls.map((c, idx) => 
       onSnapshot(collection(db, c), (snap) => {
-        const newItems = snap.docs.map(d => ({ id: d.id, ...d.data(), groupType: colls[idx] as GroupType } as GroupItem));
+        const newItems = snap.docs.map(d => ({ 
+          id: d.id, 
+          ...d.data(), 
+          groupType: colls[idx] as GroupType 
+        } as GroupItem));
+        
         setAllData(prev => {
           const other = prev.filter(i => i.groupType !== colls[idx]);
           return [...other, ...newItems];
@@ -402,7 +514,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const handleGetLocation = () => {
     setGettingLocation(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGettingLocation(false); },
+      (pos) => { 
+        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); 
+        setGettingLocation(false); 
+      },
       () => { setGettingLocation(false); alert('GPS Falhou'); },
       { enableHighAccuracy: true }
     );
@@ -419,7 +534,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       
       if (currentView === 'painel') {
           dataToSave = {
-              "Tag": formData.tag,
+              "Tag do Painel": formData.tag,
               "Switch 1": formData.switch1,
               "Switch 2": formData.switch2,
               "Switch 3": formData.switch3,
@@ -553,34 +668,35 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                        <div className="space-y-4">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-500 uppercase ml-1">1. Localização Satélite</label>
-                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-950 border-slate-800 text-blue-400">
+                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-950 border-slate-800 text-blue-400 active:bg-blue-900/10">
                                 {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
                                 {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
                              </button>
+                             {location && <MiniMapPreview lat={location.lat} lng={location.lng} color="#3b82f6" />}
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1">2. Tag da Câmera</label>
-                                <input placeholder="CAM-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
+                                <input placeholder="CAM-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-blue-500" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1">3. Endereço IP</label>
-                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
+                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-blue-500" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
                              </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1">4. Painel de Conexão</label>
-                                <input placeholder="PN-XXX" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
+                                <input placeholder="PN-XXX" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-blue-500" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1">5. Máscara de Rede</label>
-                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
+                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-blue-500" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
                              </div>
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-500 uppercase ml-1">6. Local de Instalação</label>
-                             <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
+                             <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white outline-none focus:border-blue-500" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
                                   <option value="">Selecione Local...</option>
                                   {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
                                   <option value="NOVO">+ NOVO LOCAL</option>
@@ -589,53 +705,54 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-500 uppercase ml-1">7. Switch CFTV (Referência)</label>
-                             <input placeholder="SW-CFTV-01" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.switch_cftv || ""} onChange={e => setFormData({...formData, switch_cftv: e.target.value})} />
+                             <input placeholder="SW-CFTV-01" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-blue-500" value={formData.switch_cftv || ""} onChange={e => setFormData({...formData, switch_cftv: e.target.value})} />
                           </div>
                        </div>
                      ) : currentView === 'telecom' ? (
                        <div className="space-y-4">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-500 uppercase ml-1">1. Localização Satélite</label>
-                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-950 border-slate-800 text-indigo-400">
+                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-950 border-slate-800 text-indigo-400 active:bg-indigo-900/10">
                                 {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
                                 {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
                              </button>
+                             {location && <MiniMapPreview lat={location.lat} lng={location.lng} color="#6366f1" />}
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1">2. Tag Switch</label>
-                                <input placeholder="SW-TEL-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
+                                <input placeholder="SW-TEL-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-indigo-500" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1">3. Endereço IP</label>
-                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
+                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-indigo-500" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
                              </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1">4. Máscara de Rede</label>
-                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
+                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-indigo-500" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-500 uppercase ml-1">5. Marca</label>
-                                <input placeholder="Cisco / Dell / HP" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.marca || ""} onChange={e => setFormData({...formData, marca: e.target.value})} />
+                                <input placeholder="Cisco / Dell / HP" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-indigo-500" value={formData.marca || ""} onChange={e => setFormData({...formData, marca: e.target.value})} />
                              </div>
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-500 uppercase ml-1">6. Painel de Conexão</label>
-                             <input placeholder="PN-XXX" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
+                             <input placeholder="PN-XXX" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-indigo-500" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">7. Local de Instalação</label>
-                               <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
+                               <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white outline-none focus:border-indigo-500" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
                                     <option value="">Selecione Local...</option>
                                     {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
                                </select>
                             </div>
                             <div className="space-y-2">
                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">8. Equipamento</label>
-                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white disabled:opacity-30" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
+                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white disabled:opacity-30 outline-none focus:border-indigo-500" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
                                     <option value="">Selecione Ativo...</option>
                                     {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                                </select>
@@ -646,31 +763,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                        <div className="space-y-4">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-500 uppercase ml-1">1. Localização Satélite</label>
-                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-950 border-slate-800 text-orange-400">
+                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-950 border-slate-800 text-orange-400 active:bg-orange-900/10">
                                 {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
                                 {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
                              </button>
+                             {location && <MiniMapPreview lat={location.lat} lng={location.lng} color="#f97316" />}
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-500 uppercase ml-1">2. Tag do Painel</label>
-                             <input placeholder="TAG-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
+                             <input placeholder="TAG-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-orange-500" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
                           </div>
                           <div className="grid grid-cols-3 gap-2">
-                             <input placeholder="SW 1 IP" className="p-3 bg-slate-950 border border-slate-800 text-[10px] text-white" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
-                             <input placeholder="SW 2 IP" className="p-3 bg-slate-950 border border-slate-800 text-[10px] text-white" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
-                             <input placeholder="SW 3 IP" className="p-3 bg-slate-950 border border-slate-800 text-[10px] text-white" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
+                             <input placeholder="SW 1 IP" className="p-3 bg-slate-950 border border-slate-800 text-[10px] text-white outline-none focus:border-orange-500" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
+                             <input placeholder="SW 2 IP" className="p-3 bg-slate-950 border border-slate-800 text-[10px] text-white outline-none focus:border-orange-500" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
+                             <input placeholder="SW 3 IP" className="p-3 bg-slate-950 border border-slate-800 text-[10px] text-white outline-none focus:border-orange-500" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">Local / Área</label>
-                               <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value})}>
+                               <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white outline-none focus:border-orange-500" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value})}>
                                     <option value="">Selecione Local...</option>
                                     {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
                                </select>
                             </div>
                             <div className="space-y-2">
                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">Ativo Principal</label>
-                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white disabled:opacity-30" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
+                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white disabled:opacity-30 outline-none focus:border-orange-500" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
                                     <option value="">Selecione Ativo...</option>
                                     {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                                </select>
@@ -679,12 +797,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                        </div>
                      ) : (
                        <div className="space-y-4">
-                          <input placeholder="IDENTIFICAÇÃO (TAG / NOME)" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.tag || formData.nome || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'nome' : 'tag']: e.target.value})} />
-                          <input placeholder="LOCALIZAÇÃO / CATEGORIA" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.local || formData.categoria || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'categoria' : 'local']: e.target.value})} />
-                          <textarea placeholder="OBSERVAÇÕES..." className="w-full p-4 bg-slate-950 border border-slate-800 text-white min-h-[100px] uppercase" value={formData.obs || ""} onChange={e => setFormData({...formData, obs: e.target.value})} />
+                          <input placeholder="IDENTIFICAÇÃO (TAG / NOME)" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-blue-500" value={formData.tag || formData.nome || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'nome' : 'tag']: e.target.value})} />
+                          <input placeholder="LOCALIZAÇÃO / CATEGORIA" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase outline-none focus:border-blue-500" value={formData.local || formData.categoria || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'categoria' : 'local']: e.target.value})} />
+                          <textarea placeholder="OBSERVAÇÕES..." className="w-full p-4 bg-slate-950 border border-slate-800 text-white min-h-[100px] uppercase outline-none focus:border-blue-500" value={formData.obs || ""} onChange={e => setFormData({...formData, obs: e.target.value})} />
                        </div>
                      )}
-                     <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest shadow-2xl">
+                     <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest shadow-2xl active:translate-y-1">
                         {loading ? <Loader2 className="animate-spin inline mr-2" /> : <Save className="inline mr-2" />} FINALIZAR CADASTRO
                      </button>
                   </form>
@@ -707,7 +825,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <ConfirmModal 
           isOpen={!!itemToDelete}
           title="Atenção: Exclusão Permanente"
-          message={`VOCÊ ESTÁ PRESTES A EXCLUIR O REGISTRO "${cleanTagName(itemToDelete?.data?.["Tag"] || itemToDelete?.data?.["Tag da Câmera"] || itemToDelete?.data?.["Tag Switch"] || itemToDelete?.data?.["Nome"] || "")}". ESTA AÇÃO É IRREVERSÍVEL E REMOVERÁ TODOS OS DADOS DO BANCO.`}
+          message={`VOCÊ ESTÁ PRESTES A EXCLUIR O REGISTRO "${cleanTagName(itemToDelete?.data?.["Tag"] || itemToDelete?.data?.["Tag da Câmera"] || itemToDelete?.data?.["Tag Switch"] || itemToDelete?.data?.["Tag do Painel"] || itemToDelete?.data?.["Nome"] || "")}". ESTA AÇÃO É IRREVERSÍVEL E REMOVERÁ TODOS OS DADOS DO BANCO.`}
           onConfirm={handleConfirmDelete}
           onCancel={() => setItemToDelete(null)}
           isLoading={isDeleting}
@@ -766,13 +884,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
              <div className="absolute top-0 right-0 p-8 bg-white/5 blur-3xl -mr-6 -mt-6"></div>
              <div className={`p-4 mb-6 ${group.lightColor} ${group.textColor} border border-slate-700 group-hover:scale-110 transition-transform`}><group.icon size={22} /></div>
              <h3 className="text-[11px] sm:text-lg font-black uppercase mb-2 text-white group-hover:text-blue-400 transition-colors leading-none">{group.label}</h3>
-             <div className="flex items-center gap-2 text-[8px] sm:text-[9px] font-black text-slate-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all mt-auto">Explorar <ArrowRight size={12} /></div>
+             <div className="flex items-center gap-2 text-[8px] sm:text-[9px] font-black text-slate-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all mt-auto">Acessar <ArrowRight size={12} /></div>
           </button>
         ))}
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-900 text-center">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V3.9.5</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.0.5</p>
       </footer>
     </div>
   );
