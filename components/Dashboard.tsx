@@ -12,16 +12,15 @@ const {
   deleteDoc, 
   updateDoc, 
   doc, 
-  writeBatch,
 } = firestore as any;
 
 import { auth, db } from '../services/firebase';
 import { 
   LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, 
-  MapPin, Loader2, Edit, X, Globe, Trash2, Crosshair, Server, 
-  CheckCircle, Database, Activity, Locate, 
-  Link, FileText, Download, Eye, 
-  MessageSquare, Navigation, FileDown
+  MapPin, Loader2, Edit, X, Globe, Trash2, Server, 
+  Database, Activity, Locate, 
+  Link, Download, 
+  Navigation, Eye, CheckCircle, Crosshair, MessageSquare
 } from 'lucide-react';
 
 declare const L: any;
@@ -66,12 +65,6 @@ const groupsConfig = {
 
 const normalizeText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const cleanTagName = (tag: string) => (tag || "").replace(/^(Item|Tag|Ativo|ITEM|TW):\s*/gi, '').split('|')[0].trim();
-
-const getDrivePreviewUrl = (url: string) => {
-  if (!url) return null;
-  const match = url.match(/(?:\/d\/|id=)([\w-]+)/);
-  return match ? `https://drive.google.com/file/d/${match[1]}/preview` : null;
-};
 
 const HighlightedText: React.FC<{ text: string; highlight: string; className?: string }> = ({ text, highlight, className = "" }) => {
   if (!highlight.trim()) return <span className={className}>{text}</span>;
@@ -166,9 +159,8 @@ const MiniMapPreview: React.FC<{ lat: number, lng: number, tag: string }> = ({ l
 const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; onDelete: (id: string) => void; searchHighlight: string; }> = ({ item, config, onSelect, onDelete, searchHighlight }) => {
   const data = item.data || {};
   const isPainel = config.id === 'painel';
-  const isDownload = config.id === 'downloads';
   const tagValue = cleanTagName(data["Tag"] || data["Tag do Painel"] || data["Nome"] || item.content);
-  const hasGeo = (isPainel || config.id === 'tw_local') && !!data["Geolocalização"];
+  const hasGeo = !!data["Geolocalização"];
 
   return (
     <div onClick={onSelect} className="group relative flex flex-col bg-slate-800/50 border border-slate-700 p-0 shadow-lg hover:bg-slate-800 hover:border-blue-500/50 transition-all cursor-pointer active:translate-x-1 active:translate-y-1 overflow-hidden">
@@ -190,13 +182,12 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
                   <Trash2 size={16} />
                 </button>
              )}
-             {isDownload ? <div className="p-1.5 bg-slate-900 border border-cyan-500/30 text-cyan-400"><Download size={14} /></div> : null}
           </div>
         </div>
         
         <div className="grid grid-cols-1 gap-1.5">
           <div className="flex items-center gap-2 text-slate-400 bg-slate-900/50 px-2.5 py-1.5 border-l-2 border-slate-700">
-             {isDownload ? <Database size={10} className="text-cyan-500" /> : <Locate size={10} />}
+             <Locate size={10} />
              <span className="text-[9px] font-bold truncate tracking-tight uppercase">
                 <HighlightedText text={data["Local Selecionável"] || data["Local"] || data["Categoria"] || "N/A"} highlight={searchHighlight} />
              </span>
@@ -209,27 +200,18 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
                  if (!val) return null;
                  return (
                    <div key={key} className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-900 border border-slate-700 text-[8px] font-black text-slate-400 uppercase tracking-tighter">
-                      <Activity size={8} className="text-orange-500" /> {key.replace('Switch ', 'SW')}: {val}
+                      <Activity size={8} className="text-orange-500" /> SW: {val}
                    </div>
                  );
                })}
-            </div>
-          )}
-
-          {isDownload && data["Link"] && (
-            <div className="mt-1 space-y-1.5">
-               <div className="flex items-center gap-2 text-[8px] text-slate-500 border-l-2 border-slate-800 px-2">
-                  <Link size={10} className="text-cyan-500" /> <span className="font-mono truncate max-w-[120px]">{data["Link"]}</span>
-               </div>
-               {data["Descrição"] && <p className="text-[8px] text-slate-600 px-2 italic line-clamp-2 uppercase">{data["Descrição"]}</p>}
             </div>
           )}
         </div>
 
         <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-2 border-t border-slate-700/50 tracking-widest uppercase mt-auto">
            <span className="flex items-center gap-1.5">
-             <div className={`w-1.5 h-1.5 ${hasGeo || isDownload ? (isDownload ? 'bg-cyan-500' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]') : 'bg-slate-700'}`}></div>
-             {isDownload ? 'VISUALIZAR' : (hasGeo ? 'SINCRONIZADO' : config.label)}
+             <div className={`w-1.5 h-1.5 rounded-full ${hasGeo ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700'}`}></div>
+             {hasGeo ? 'SINCRONIZADO' : config.label}
            </span>
            <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 transition-all" />
         </div>
@@ -243,9 +225,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Record<string, any>>(item.data || {});
   
-  const isDownload = groupKey === 'downloads';
   const isPainel = groupKey === 'painel';
-  const previewUrl = isDownload ? getDrivePreviewUrl(editData["Link"]) : null;
 
   const handleSave = async () => {
       setIsSaving(true);
@@ -272,18 +252,6 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
           </div>
           
           <div className="flex-1 bg-slate-950 p-4 sm:p-12 space-y-8">
-              {isDownload && previewUrl && !isEditing ? (
-                 <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                       <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Eye size={14} className="text-cyan-400" /> Visualização do Documento</h4>
-                       <button onClick={() => window.open(editData["Link"], '_blank')} className="text-[9px] font-black text-cyan-400 hover:underline uppercase">Abrir tela cheia</button>
-                    </div>
-                    <div className="w-full aspect-[4/3] sm:aspect-video bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden">
-                       <iframe src={previewUrl} className="w-full h-full border-none" allow="autoplay"></iframe>
-                    </div>
-                 </div>
-              ) : null}
-
               <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 space-y-6">
                 <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
                   <Database className="text-blue-500" size={20} />
@@ -516,7 +484,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                                   {formData.local && formData.local !== "NOVO" && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                                   <option value="NOVO">+ NOVO EQUIPAMENTO</option>
                              </select>
-                             {formData.equipamento === "NOVO" && <input placeholder="NOME DO NOVO ATIVO" required value={formData.customEquipamento || ""} className="w-full p-4 bg-blue-900/10 border border-blue-800 text-white font-bold shadow-inner uppercase" onChange={e => setFormData({...formData, customEquipamento: e.target.value})} />}
+                             {formData.equipamento === "NOVO" && <input placeholder="NOME DO NOVO EQUIPAMENTO" required value={formData.customEquipamento || ""} className="w-full p-4 bg-blue-900/10 border border-blue-800 text-white font-bold shadow-inner uppercase" onChange={e => setFormData({...formData, customEquipamento: e.target.value})} />}
                           </div>
 
                           <div className="space-y-2">
@@ -586,15 +554,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <h2 className="text-3xl sm:text-6xl font-black tracking-tighter uppercase leading-none text-white">Olá, <span className="text-blue-600">{user.email?.split('@')[0]}</span></h2>
         <div className="h-1.5 w-20 bg-blue-600 mt-5 mb-8"></div>
         
-        {/* Botão de Mapa Geral como único acesso ao mapa na Home */}
+        {/* Mapa oculto por padrão, acessível via botão modal */}
         <button 
           onClick={() => setIsMapModalOpen(true)}
-          className="group relative flex items-center gap-4 bg-slate-900/60 border border-slate-800 p-6 rounded-none hover:border-blue-500/50 transition-all shadow-2xl overflow-hidden active:translate-y-1"
+          className="group relative flex items-center gap-4 bg-slate-900/60 border border-slate-800 p-6 rounded-none hover:border-blue-500/50 transition-all shadow-2xl overflow-hidden active:translate-y-1 w-full sm:max-w-md"
         >
           <div className="p-3 bg-blue-600 text-white shadow-lg group-hover:scale-110 transition-transform"><Globe size={24} /></div>
           <div className="text-left">
              <h3 className="text-lg font-black uppercase text-white tracking-tighter">MAPA GERAL SATÉLITE</h3>
-             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Visualizar todos os ativos em tempo real</p>
+             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Clique para visualizar todos os ativos</p>
           </div>
           <ArrowRight className="ml-auto text-slate-700 group-hover:text-blue-500 transition-colors" size={24} />
         </button>
@@ -612,7 +580,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-900 text-center">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Industrial Intelligence Engine &bull; V3.2.0</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Industrial Intelligence Engine &bull; V3.3.0</p>
       </footer>
     </div>
   );
