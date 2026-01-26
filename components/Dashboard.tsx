@@ -20,7 +20,7 @@ import {
   MapPin, Loader2, Edit, X, Globe, Trash2, Crosshair, Server, 
   CheckCircle, Database, Activity, Locate, 
   Link, Download, 
-  Navigation, Eye, MessageSquare, AlertTriangle
+  Navigation, Eye, MessageSquare, AlertTriangle, ShieldCheck, Wifi
 } from 'lucide-react';
 
 declare const L: any;
@@ -64,7 +64,7 @@ const groupsConfig = {
 };
 
 const normalizeText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-const cleanTagName = (tag: string) => (tag || "").replace(/^(Item|Tag|Ativo|ITEM|TW):\s*/gi, '').split('|')[0].trim();
+const cleanTagName = (tag: string) => (tag || "").replace(/^(Item|Tag|Ativo|ITEM|TW|Cam):\s*/gi, '').split('|')[0].trim();
 
 const getDrivePreviewUrl = (url: string) => {
   if (!url) return null;
@@ -72,7 +72,6 @@ const getDrivePreviewUrl = (url: string) => {
   return match ? `https://drive.google.com/file/d/${match[1]}/preview` : null;
 };
 
-// Componente de Confirmação Customizado
 const ConfirmModal: React.FC<{ 
   isOpen: boolean; 
   title: string; 
@@ -105,7 +104,7 @@ const ConfirmModal: React.FC<{
             disabled={isLoading}
             className="p-4 text-[10px] font-black text-red-500 hover:bg-red-500 hover:text-white uppercase tracking-widest transition-all"
           >
-            {isLoading ? <Loader2 size={14} className="animate-spin mx-auto" /> : "CONFIRMAR EXCLUSÃO"}
+            {isLoading ? <Loader2 size={14} className="animate-spin mx-auto" /> : "CONFIRMAR"}
           </button>
         </div>
       </div>
@@ -197,13 +196,13 @@ const ItemCard: React.FC<{
   const data = item.data || {};
   const isPainel = config.id === 'painel';
   const isDownload = config.id === 'downloads';
-  const tagValue = cleanTagName(data["Tag"] || data["Tag do Painel"] || data["Nome"] || item.content);
+  const tagValue = cleanTagName(data["Tag"] || data["Tag do Painel"] || data["Nome"] || data["Tag da Câmera"] || data["Tag Switch"] || item.content);
   const hasGeo = !!data["Geolocalização"];
 
   return (
     <div onClick={onSelect} className="group relative flex flex-col bg-slate-800/50 border border-slate-700 p-0 shadow-lg hover:bg-slate-800 hover:border-blue-500/50 transition-all cursor-pointer active:translate-x-1 active:translate-y-1 overflow-hidden">
       <div className={`h-1 w-full ${config.color}`}></div>
-      <div className="p-4 sm:p-5 flex flex-col gap-3 min-h-[160px]">
+      <div className="p-4 sm:p-5 flex flex-col gap-3 min-h-[140px] sm:min-h-[160px]">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <p className="text-[9px] font-black text-slate-500 tracking-widest mb-0.5 uppercase">{config.label}</p>
@@ -212,7 +211,7 @@ const ItemCard: React.FC<{
             </h3>
           </div>
           <div className="flex items-center gap-1">
-             {isPainel && (
+             {(isPainel || config.id === 'ctv' || config.id === 'telecom') && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); onDeleteRequest(item); }} 
                   className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 transition-all"
@@ -228,23 +227,22 @@ const ItemCard: React.FC<{
           <div className="flex items-center gap-2 text-slate-400 bg-slate-900/50 px-2.5 py-1.5 border-l-2 border-slate-700">
              {isDownload ? <Database size={10} className="text-cyan-500" /> : <Locate size={10} />}
              <span className="text-[9px] font-bold truncate tracking-tight uppercase">
-                <HighlightedText text={data["Local Selecionável"] || data["Local"] || data["Categoria"] || "N/A"} highlight={searchHighlight} />
+                <HighlightedText text={data["Local Selecionável"] || data["Local"] || data["Categoria"] || data["Local de Instalação"] || "N/A"} highlight={searchHighlight} />
              </span>
           </div>
           
-          {isPainel && (
-            <div className="flex flex-wrap gap-1.5 mt-1">
-               {["Switch 1", "Switch 2", "Switch 3"].map(key => {
-                 const val = data[key];
-                 if (!val) return null;
-                 return (
-                   <div key={key} className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-900 border border-slate-700 text-[8px] font-black text-slate-400 uppercase tracking-tighter">
-                      <Activity size={8} className="text-orange-500" /> SW: {val}
-                   </div>
-                 );
-               })}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1.5 mt-1">
+             {(data["Endereço IP"] || data["IP"]) && (
+               <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-900 border border-slate-700 text-[8px] font-black text-blue-400 uppercase tracking-tighter">
+                  IP: {data["Endereço IP"] || data["IP"]}
+               </div>
+             )}
+             {data["Marca"] && (
+               <div className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-900 border border-slate-700 text-[8px] font-black text-indigo-400 uppercase tracking-tighter">
+                  {data["Marca"]}
+               </div>
+             )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-2 border-t border-slate-700/50 tracking-widest uppercase mt-auto">
@@ -272,13 +270,13 @@ const ItemDetail: React.FC<{
   const [editData, setEditData] = useState<Record<string, any>>(item.data || {});
   
   const isDownload = groupKey === 'downloads';
-  const isPainel = groupKey === 'painel';
   const previewUrl = isDownload ? getDrivePreviewUrl(editData["Link"] || editData["link"]) : null;
 
   const handleSave = async () => {
       setIsSaving(true);
       try {
-          await updateDoc(doc(db, groupKey, item.id), { data: editData, content: cleanTagName(editData["Tag"] || editData["Nome"] || item.content) });
+          const content = cleanTagName(editData["Tag"] || editData["Nome"] || editData["Tag do Painel"] || editData["Tag da Câmera"] || editData["Tag Switch"] || item.content);
+          await updateDoc(doc(db, groupKey, item.id), { data: editData, content });
           setIsEditing(false);
       } catch (e) { alert("Erro ao salvar"); } finally { setIsSaving(false); }
   };
@@ -291,7 +289,7 @@ const ItemDetail: React.FC<{
               <div className="flex items-center gap-4 min-w-0">
                 <button onClick={onClose} className="p-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600"><ArrowLeft size={20} /></button>
                 <div className="min-w-0">
-                  <h2 className="text-lg sm:text-2xl font-black truncate uppercase tracking-tighter">{cleanTagName(editData["Tag"] || editData["Nome"] || editData["Tag do Painel"] || "Ficha Técnica")}</h2>
+                  <h2 className="text-lg sm:text-2xl font-black truncate uppercase tracking-tighter">{cleanTagName(editData["Tag"] || editData["Nome"] || editData["Tag do Painel"] || editData["Tag da Câmera"] || editData["Tag Switch"] || "Ficha Técnica")}</h2>
                   <p className="text-[9px] font-black text-slate-500 tracking-widest uppercase mt-1">{config.label} &bull; Registro de Ativo</p>
                 </div>
               </div>
@@ -322,7 +320,8 @@ const ItemDetail: React.FC<{
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                       {Object.entries(editData).map(([key, value]) => {
-                        if (isPainel && !isEditing && (key === "Tag" || key === "Local Selecionável" || key === "Tag do Painel")) return null;
+                        if (key.includes('__EMPTY')) return null;
+                        if (!isEditing && (key === "Tag" || key === "Local Selecionável" || key === "Tag do Painel" || key === "Tag da Câmera" || key === "Tag Switch" || key === "Local de Instalação")) return null;
                         if (key === "Geolocalização" || key === "Link Maps" || key === "Link" || key === "link") return null;
                         
                         return (
@@ -336,12 +335,6 @@ const ItemDetail: React.FC<{
                           </div>
                         );
                       })}
-                      {isEditing && isDownload && (
-                        <div className="space-y-2 col-span-full">
-                           <h5 className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Link de Origem (Drive)</h5>
-                           <input type="text" value={String(editData["Link"] || editData["link"] || "")} onChange={(e) => setEditData({ ...editData, Link: e.target.value })} className="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-white font-mono text-sm outline-none focus:border-blue-500" />
-                        </div>
-                      )}
                   </div>
                 </div>
               )}
@@ -354,7 +347,7 @@ const ItemDetail: React.FC<{
                 </div>
               )}
 
-              {isPainel && (
+              {(groupKey === 'painel' || groupKey === 'ctv' || groupKey === 'telecom') && (
                 <button 
                   onClick={() => onDeleteRequest(item)}
                   className="w-full py-4 bg-red-950/20 text-red-500 border border-red-900/30 text-[9px] font-black uppercase flex items-center justify-center gap-2"
@@ -378,12 +371,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<any>({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '', obs: '', desc: '', link: '', nome: '' });
+  const [formData, setFormData] = useState<any>({ 
+    tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', 
+    equipamento: '', customLocal: '', customEquipamento: '', obs: '', 
+    desc: '', link: '', nome: '', painel: '', mascara: '', switch_cftv: '', marca: '' 
+  });
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
-    const colls = ['ctv', 'telecom', 'painel', 'embarcados', 'tw_local', 'downloads'];
+    const colls = ['ctv', 'telecom', 'embarcados', 'tw_local', 'downloads'];
     const unsubs = colls.map((c, idx) => 
       onSnapshot(collection(db, c), (snap) => {
         const newItems = snap.docs.map(d => ({ id: d.id, ...d.data(), groupType: colls[idx] as GroupType } as GroupItem));
@@ -415,13 +412,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const isPainel = currentView === 'painel';
       const finalLocal = formData.local === "NOVO" ? formData.customLocal : formData.local;
       const finalEquip = formData.equipamento === "NOVO" ? formData.customEquipamento : formData.equipamento;
       
       let dataToSave: any = { ...formData };
       
-      if (isPainel) {
+      if (currentView === 'painel') {
           dataToSave = {
               "Tag": formData.tag,
               "Switch 1": formData.switch1,
@@ -429,6 +425,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               "Switch 3": formData.switch3,
               "Local Selecionável": finalLocal,
               "Equipamentos": finalEquip,
+              "Observações": formData.obs
+          };
+      } else if (currentView === 'ctv') {
+          dataToSave = {
+              "Tag da Câmera": formData.tag,
+              "Endereço IP": formData.ip,
+              "Painel de Conexão": formData.painel,
+              "Máscara de Rede": formData.mascara,
+              "Local de Instalação": finalLocal,
+              "Switch CFTV": formData.switch_cftv,
+              "Observações": formData.obs
+          };
+      } else if (currentView === 'telecom') {
+          dataToSave = {
+              "Tag Switch": formData.tag,
+              "Endereço IP": formData.ip,
+              "Máscara de Rede": formData.mascara,
+              "Marca": formData.marca,
+              "Painel": formData.painel,
+              "Local de Instalação": finalLocal,
+              "Equipamento": finalEquip,
               "Observações": formData.obs
           };
       } else if (currentView === 'downloads') {
@@ -454,7 +471,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         createdAt: serverTimestamp() 
       });
       setIsModalOpen(false);
-      setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '', obs: '', desc: '', link: '', nome: '' });
+      setFormData({ 
+        tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', 
+        equipamento: '', customLocal: '', customEquipamento: '', obs: '', 
+        desc: '', link: '', nome: '', painel: '', mascara: '', switch_cftv: '', marca: '' 
+      });
       setLocation(null);
     } catch (e) { alert("Erro ao salvar"); } finally { setLoading(false); }
   };
@@ -507,7 +528,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             />
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filteredItems.map(item => (
               <ItemCard 
                 key={item.id} 
@@ -528,75 +549,142 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                     <button onClick={() => setIsModalOpen(false)}><X size={20} /></button>
                   </div>
                   <form onSubmit={handleSave} className="p-6 space-y-5 overflow-y-auto bg-slate-900">
-                     {currentView === 'painel' ? (
+                     {currentView === 'ctv' ? (
                        <div className="space-y-4">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-500 uppercase ml-1">1. Localização Satélite</label>
-                             <button type="button" onClick={handleGetLocation} className={`w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all ${location ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-950 border-slate-800 text-blue-400'}`}>
+                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-950 border-slate-800 text-blue-400">
                                 {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
                                 {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
                              </button>
                           </div>
-
-                          <div className="space-y-2">
-                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">2. Tag do Painel</label>
-                             <input placeholder="Ex: VC-1080KS" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none font-bold uppercase shadow-inner focus:border-orange-500" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-2">
-                             <div className="space-y-1">
-                                <label className="text-[8px] font-black text-slate-600 uppercase">SW 1</label>
-                                <input placeholder="IP" className="w-full p-3 bg-slate-950 border border-slate-800 outline-none text-[10px] font-bold text-white shadow-inner focus:border-blue-500" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
+                          <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">2. Tag da Câmera</label>
+                                <input placeholder="CAM-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
                              </div>
-                             <div className="space-y-1">
-                                <label className="text-[8px] font-black text-slate-600 uppercase">SW 2</label>
-                                <input placeholder="IP" className="w-full p-3 bg-slate-950 border border-slate-800 outline-none text-[10px] font-bold text-white shadow-inner focus:border-blue-500" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
-                             </div>
-                             <div className="space-y-1">
-                                <label className="text-[8px] font-black text-slate-600 uppercase">SW 3</label>
-                                <input placeholder="IP" className="w-full p-3 bg-slate-950 border border-slate-800 outline-none text-[10px] font-bold text-white shadow-inner focus:border-blue-500" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">3. Endereço IP</label>
+                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
                              </div>
                           </div>
-
+                          <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">4. Painel de Conexão</label>
+                                <input placeholder="PN-XXX" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
+                             </div>
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">5. Máscara de Rede</label>
+                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
+                             </div>
+                          </div>
                           <div className="space-y-2">
-                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">4. Área / Sistema</label>
-                             <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs outline-none text-white cursor-pointer shadow-inner focus:border-orange-500" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, equipamento: '', customLocal: ''})}>
+                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">6. Local de Instalação</label>
+                             <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
                                   <option value="">Selecione Local...</option>
                                   {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
                                   <option value="NOVO">+ NOVO LOCAL</option>
                              </select>
-                             {formData.local === "NOVO" && <input placeholder="NOME DO NOVO LOCAL" required value={formData.customLocal || ""} className="w-full p-4 bg-blue-900/10 border border-blue-800 text-white font-bold shadow-inner uppercase mt-2" onChange={e => setFormData({...formData, customLocal: e.target.value})} />}
+                             {formData.local === "NOVO" && <input placeholder="NOME DO NOVO LOCAL" required value={formData.customLocal || ""} className="w-full p-4 bg-blue-900/10 border border-blue-800 text-white font-bold uppercase mt-2" onChange={e => setFormData({...formData, customLocal: e.target.value})} />}
                           </div>
-
                           <div className="space-y-2">
-                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">5. Ativo Principal</label>
-                             <select required disabled={!formData.local} className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs outline-none disabled:opacity-30 text-white cursor-pointer shadow-inner focus:border-orange-500" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value, customEquipamento: ''})}>
-                                  <option value="">Selecione Ativo...</option>
-                                  {formData.local && formData.local !== "NOVO" && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-                                  <option value="NOVO">+ NOVO ATIVO</option>
-                             </select>
-                             {formData.equipamento === "NOVO" && <input placeholder="NOME DO NOVO ATIVO" required value={formData.customEquipamento || ""} className="w-full p-4 bg-blue-900/10 border border-blue-800 text-white font-bold shadow-inner uppercase mt-2" onChange={e => setFormData({...formData, customEquipamento: e.target.value})} />}
+                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">7. Switch CFTV (Referência)</label>
+                             <input placeholder="SW-CFTV-01" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.switch_cftv || ""} onChange={e => setFormData({...formData, switch_cftv: e.target.value})} />
                           </div>
-
+                       </div>
+                     ) : currentView === 'telecom' ? (
+                       <div className="space-y-4">
                           <div className="space-y-2">
-                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1 flex items-center gap-2"><MessageSquare size={12}/> 6. Observações</label>
-                             <textarea placeholder="..." className="w-full p-4 bg-slate-950 border border-slate-800 outline-none font-bold text-white min-h-[80px] uppercase shadow-inner focus:border-orange-500" value={formData.obs || ""} onChange={e => setFormData({...formData, obs: e.target.value})} />
+                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">1. Localização Satélite</label>
+                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-950 border-slate-800 text-indigo-400">
+                                {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
+                                {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
+                             </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">2. Tag Switch</label>
+                                <input placeholder="SW-TEL-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
+                             </div>
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">3. Endereço IP</label>
+                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
+                             </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">4. Máscara de Rede</label>
+                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
+                             </div>
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black text-slate-500 uppercase ml-1">5. Marca</label>
+                                <input placeholder="Cisco / Dell / HP" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.marca || ""} onChange={e => setFormData({...formData, marca: e.target.value})} />
+                             </div>
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">6. Painel de Conexão</label>
+                             <input placeholder="PN-XXX" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                               <label className="text-[9px] font-black text-slate-500 uppercase ml-1">7. Local de Instalação</label>
+                               <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
+                                    <option value="">Selecione Local...</option>
+                                    {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
+                               </select>
+                            </div>
+                            <div className="space-y-2">
+                               <label className="text-[9px] font-black text-slate-500 uppercase ml-1">8. Equipamento</label>
+                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white disabled:opacity-30" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
+                                    <option value="">Selecione Ativo...</option>
+                                    {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                               </select>
+                            </div>
+                          </div>
+                       </div>
+                     ) : currentView === 'painel' ? (
+                       <div className="space-y-4">
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">1. Localização Satélite</label>
+                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-950 border-slate-800 text-orange-400">
+                                {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
+                                {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
+                             </button>
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">2. Tag do Painel</label>
+                             <input placeholder="TAG-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                             <input placeholder="SW 1 IP" className="p-3 bg-slate-950 border border-slate-800 text-[10px] text-white" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
+                             <input placeholder="SW 2 IP" className="p-3 bg-slate-950 border border-slate-800 text-[10px] text-white" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
+                             <input placeholder="SW 3 IP" className="p-3 bg-slate-950 border border-slate-800 text-[10px] text-white" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                               <label className="text-[9px] font-black text-slate-500 uppercase ml-1">Local / Área</label>
+                               <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value})}>
+                                    <option value="">Selecione Local...</option>
+                                    {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
+                               </select>
+                            </div>
+                            <div className="space-y-2">
+                               <label className="text-[9px] font-black text-slate-500 uppercase ml-1">Ativo Principal</label>
+                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs text-white disabled:opacity-30" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
+                                    <option value="">Selecione Ativo...</option>
+                                    {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                               </select>
+                            </div>
                           </div>
                        </div>
                      ) : (
                        <div className="space-y-4">
-                          <input placeholder="IDENTIFICAÇÃO (TAG / NOME)" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none font-bold uppercase shadow-inner" value={formData.tag || formData.nome || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'nome' : 'tag']: e.target.value})} />
-                          {currentView === 'downloads' && (
-                             <input placeholder="URL DO GOOGLE DRIVE" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none shadow-inner font-mono text-xs" value={formData.link || ""} onChange={e => setFormData({...formData, link: e.target.value})} />
-                          )}
-                          <input placeholder="LOCALIZAÇÃO / CATEGORIA" className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none font-bold uppercase shadow-inner" value={formData.local || formData.categoria || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'categoria' : 'local']: e.target.value})} />
-                          {currentView !== 'downloads' && (
-                             <input placeholder="ENDEREÇO IP / REDE" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none shadow-inner font-bold uppercase" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
-                          )}
-                          <textarea placeholder="DESCRIÇÃO ADICIONAL..." className="w-full p-4 bg-slate-950 border border-slate-800 outline-none font-bold text-white min-h-[100px] uppercase shadow-inner" value={formData.desc || formData.obs || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'desc' : 'obs']: e.target.value})} />
+                          <input placeholder="IDENTIFICAÇÃO (TAG / NOME)" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.tag || formData.nome || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'nome' : 'tag']: e.target.value})} />
+                          <input placeholder="LOCALIZAÇÃO / CATEGORIA" className="w-full p-4 bg-slate-950 border border-slate-800 text-white font-bold uppercase" value={formData.local || formData.categoria || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'categoria' : 'local']: e.target.value})} />
+                          <textarea placeholder="OBSERVAÇÕES..." className="w-full p-4 bg-slate-950 border border-slate-800 text-white min-h-[100px] uppercase" value={formData.obs || ""} onChange={e => setFormData({...formData, obs: e.target.value})} />
                        </div>
                      )}
-                     <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest shadow-2xl active:translate-y-1">
+                     <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest shadow-2xl">
                         {loading ? <Loader2 className="animate-spin inline mr-2" /> : <Save className="inline mr-2" />} FINALIZAR CADASTRO
                      </button>
                   </form>
@@ -619,7 +707,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <ConfirmModal 
           isOpen={!!itemToDelete}
           title="Atenção: Exclusão Permanente"
-          message={`VOCÊ ESTÁ PRESTES A EXCLUIR O REGISTRO "${cleanTagName(itemToDelete?.data?.["Tag"] || itemToDelete?.data?.["Nome"] || "")}". ESTA AÇÃO É IRREVERSÍVEL E REMOVERÁ TODOS OS DADOS DO BANCO.`}
+          message={`VOCÊ ESTÁ PRESTES A EXCLUIR O REGISTRO "${cleanTagName(itemToDelete?.data?.["Tag"] || itemToDelete?.data?.["Tag da Câmera"] || itemToDelete?.data?.["Tag Switch"] || itemToDelete?.data?.["Nome"] || "")}". ESTA AÇÃO É IRREVERSÍVEL E REMOVERÁ TODOS OS DADOS DO BANCO.`}
           onConfirm={handleConfirmDelete}
           onCancel={() => setItemToDelete(null)}
           isLoading={isDeleting}
@@ -652,7 +740,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
              <p className="text-[7px] sm:text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mt-1">Industrial Intelligence Engine &bull; 2024</p>
            </div>
         </div>
-        <button onClick={() => signOut(auth)} className="p-4 bg-slate-900 border border-slate-800 text-slate-500 hover:text-red-500 transition-all shadow-xl active:scale-95"><LogOut size={20} /></button>
+        <button onClick={() => signOut(auth)} className="p-4 bg-slate-900 border border-slate-800 text-slate-500 hover:text-red-500 transition-all shadow-xl active:scale-95"><LogOut size={22} /></button>
       </header>
 
       <div className="mb-10 animate-fadeIn">
@@ -678,13 +766,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
              <div className="absolute top-0 right-0 p-8 bg-white/5 blur-3xl -mr-6 -mt-6"></div>
              <div className={`p-4 mb-6 ${group.lightColor} ${group.textColor} border border-slate-700 group-hover:scale-110 transition-transform`}><group.icon size={22} /></div>
              <h3 className="text-[11px] sm:text-lg font-black uppercase mb-2 text-white group-hover:text-blue-400 transition-colors leading-none">{group.label}</h3>
-             <div className="flex items-center gap-2 text-[8px] sm:text-[9px] font-black text-slate-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all mt-auto">Explorar <ArrowRight size={10} /></div>
+             <div className="flex items-center gap-2 text-[8px] sm:text-[9px] font-black text-slate-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all mt-auto">Explorar <ArrowRight size={12} /></div>
           </button>
         ))}
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-900 text-center">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V3.7.0</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V3.9.5</p>
       </footer>
     </div>
   );
