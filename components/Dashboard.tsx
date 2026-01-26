@@ -17,10 +17,10 @@ const {
 import { auth, db } from '../services/firebase';
 import { 
   LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, 
-  MapPin, Loader2, Edit, X, Globe, Trash2, Server, 
-  Database, Activity, Locate, 
+  MapPin, Loader2, Edit, X, Globe, Trash2, Crosshair, Server, 
+  CheckCircle, Database, Activity, Locate, 
   Link, Download, 
-  Navigation, Eye, CheckCircle, Crosshair, MessageSquare, Clock
+  Navigation, Eye, MessageSquare
 } from 'lucide-react';
 
 declare const L: any;
@@ -45,39 +45,13 @@ type ViewState = 'home' | GroupType;
 const GOOGLE_HYBRID_URL = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
 
 const SYSTEM_DATA: Record<string, string[]> = {
-  "SISTEMA 1": [
-    "TR-1081KS-03 (BC)", "TR-1082KS-13 (BCC)", "BELTI EE-1080KS-04 (MBW)", "BM-1080KS-04", 
-    "SE-1081KS-17", "SE-1081KS-03", "SE-1081KS-74", "SE-1081KS-13", "SE-1082KS-95 -(DRIVE)"
-  ],
-  "SISTEMA 2": [
-    "TR-1081KS-04", "TR-1081KS-52", "TR-1081KS-14 (bsm)", "TR-1081KS-05 (bsm)", "SE-1081KS-52", 
-    "SE-1081KS-04", "SE-1081KS-76", "BELTI EE-1080KS-02", "BM-1081KS-02", "SE-1081KS-50", 
-    "SE-1081KS-51", "SE-1081KS-56", "SE-1081KS-27", "SE-1081KS-97", "SE-1081KS-14", 
-    "SE-1081KS-18 (bsm)", "SE-1080KS-51 (bsm)"
-  ],
-  "SISTEMA 3": [
-    "TR-1081KS-11", "TR-1081KS-01", "BM-1081KS-03", "BELTI EE-1081KS03 (MBW)", "SE-1081KS-01", 
-    "SE-1081KS-70", "SE-1081KS-15", "SE-1081KS-21", "SE-1081KS-11", "SE-1081KS-91"
-  ],
-  "SISTEMA 4": [
-    "TR-1081KS-02", "TR-1081KS-12", "BM-1081KS-01", "BELTI EE-1081KS-01", "SE-1081KS-02", 
-    "SE-1081KS-72", "SE-1081KS-12", "SE-1081KS-23", "SE-1081KS-93"
-  ],
-  "5ª BRITAGEM": [
-    "BM-1080KS-13", "BM-1080KS-12", "BM-1080KS-11", "TR-1080KS-81", "TR-1085KS-36", 
-    "TR-1080KS-83", "TR-1080KS-88", "TR-1080KS-87", "TR-1080KS-82", "TR-1080KS-85", 
-    "TR-1080KS-86", "TR-1080KS-80", "TR-1080KS-84"
-  ],
-  "CASA DE TRANSFERENCIA": [
-    "TR-1082KS-01", "TR-1082KS-02", "TR-1082KS-03", "TR-1082KS-04", "TR-1082KS-05", 
-    "TR-1082KS-06", "TR-1080KS-37", "TR-1085KS-01", "TR-1085KS-04", "TR-1083KS-01", 
-    "TR-1084KS-01", "TR-1085KS-05", "SE-1084KS-01", "SE-1083KS-01", "SE-1082KS-02", 
-    "SE-1082KS-01", "SE-1085KS-23", "SE-1082KS-03", "SE-1082KS-04", "SE-6021KS-01", "SE-1085KS-22"
-  ],
-  "OVERLAND": [
-    "TR-1083KS-03", "TR-1083KS-04", "SE-1084KS-22", "SE-1084KS-21", "TR-1084KS-02", 
-    "TR-1083KS-02", "EE-1084KS-01 (mts)", "EE-1083KS-01 (mts)", "SE-1083KS-02", "SE-1084KS-02"
-  ]
+  "SISTEMA 1": ["TR-1081KS-03 (BC)", "TR-1082KS-13 (BCC)", "BELTI EE-1080KS-04 (MBW)", "BM-1080KS-04", "SE-1081KS-17", "SE-1081KS-03", "SE-1081KS-74", "SE-1081KS-13", "SE-1082KS-95 -(DRIVE)"],
+  "SISTEMA 2": ["TR-1081KS-04", "TR-1081KS-52", "TR-1081KS-14 (bsm)", "TR-1081KS-05 (bsm)", "SE-1081KS-52", "SE-1081KS-04", "SE-1081KS-76", "BELTI EE-1080KS-02", "BM-1081KS-02", "SE-1081KS-50", "SE-1081KS-51", "SE-1081KS-56", "SE-1081KS-27", "SE-1081KS-97", "SE-1081KS-14", "SE-1081KS-18 (bsm)", "SE-1080KS-51 (bsm)"],
+  "SISTEMA 3": ["TR-1081KS-11", "TR-1081KS-01", "BM-1081KS-03", "BELTI EE-1081KS03 (MBW)", "SE-1081KS-01", "SE-1081KS-70", "SE-1081KS-15", "SE-1081KS-21", "SE-1081KS-11", "SE-1081KS-91"],
+  "SISTEMA 4": ["TR-1081KS-02", "TR-1081KS-12", "BM-1081KS-01", "BELTI EE-1081KS-01", "SE-1081KS-02", "SE-1081KS-72", "SE-1081KS-12", "SE-1081KS-23", "SE-1081KS-93"],
+  "5ª BRITAGEM": ["BM-1080KS-13", "BM-1080KS-12", "BM-1080KS-11", "TR-1080KS-81", "TR-1085KS-36", "TR-1080KS-83", "TR-1080KS-88", "TR-1080KS-87", "TR-1080KS-82", "TR-1080KS-85", "TR-1080KS-86", "TR-1080KS-80", "TR-1080KS-84"],
+  "CASA DE TRANSFERENCIA": ["TR-1082KS-01", "TR-1082KS-02", "TR-1082KS-03", "TR-1082KS-04", "TR-1082KS-05", "TR-1082KS-06", "TR-1080KS-37", "TR-1085KS-01", "TR-1085KS-04", "TR-1083KS-01", "TR-1084KS-01", "TR-1085KS-05", "SE-1084KS-01", "SE-1083KS-01", "SE-1082KS-02", "SE-1082KS-01", "SE-1085KS-23", "SE-1082KS-03", "SE-1082KS-04", "SE-6021KS-01", "SE-1085KS-22"],
+  "OVERLAND": ["TR-1083KS-03", "TR-1083KS-04", "SE-1084KS-22", "SE-1084KS-21", "TR-1084KS-02", "TR-1083KS-02", "EE-1084KS-01 (mts)", "EE-1083KS-01 (mts)", "SE-1083KS-02", "SE-1084KS-02"]
 };
 
 const groupsConfig = {
@@ -91,6 +65,12 @@ const groupsConfig = {
 
 const normalizeText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const cleanTagName = (tag: string) => (tag || "").replace(/^(Item|Tag|Ativo|ITEM|TW):\s*/gi, '').split('|')[0].trim();
+
+const getDrivePreviewUrl = (url: string) => {
+  if (!url) return null;
+  const match = url.match(/(?:\/d\/|id=)([\w-]+)/);
+  return match ? `https://drive.google.com/file/d/${match[1]}/preview` : null;
+};
 
 const HighlightedText: React.FC<{ text: string; highlight: string; className?: string }> = ({ text, highlight, className = "" }) => {
   if (!highlight.trim()) return <span className={className}>{text}</span>;
@@ -169,6 +149,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
 const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; onDelete: (id: string) => void; searchHighlight: string; }> = ({ item, config, onSelect, onDelete, searchHighlight }) => {
   const data = item.data || {};
   const isPainel = config.id === 'painel';
+  const isDownload = config.id === 'downloads';
   const tagValue = cleanTagName(data["Tag"] || data["Tag do Painel"] || data["Nome"] || item.content);
   const hasGeo = !!data["Geolocalização"];
 
@@ -184,7 +165,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
             </h3>
           </div>
           <div className="flex items-center gap-1">
-             {/* Opção de excluir restrita ao grupo de painéis */}
              {isPainel && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); if(confirm("Deseja excluir este registro?")) onDelete(item.id); }} 
@@ -193,12 +173,13 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
                   <Trash2 size={16} />
                 </button>
              )}
+             {isDownload ? <div className="p-1.5 bg-slate-900 border border-cyan-500/30 text-cyan-400"><Download size={14} /></div> : null}
           </div>
         </div>
         
         <div className="grid grid-cols-1 gap-1.5">
           <div className="flex items-center gap-2 text-slate-400 bg-slate-900/50 px-2.5 py-1.5 border-l-2 border-slate-700">
-             <Locate size={10} />
+             {isDownload ? <Database size={10} className="text-cyan-500" /> : <Locate size={10} />}
              <span className="text-[9px] font-bold truncate tracking-tight uppercase">
                 <HighlightedText text={data["Local Selecionável"] || data["Local"] || data["Categoria"] || "N/A"} highlight={searchHighlight} />
              </span>
@@ -221,8 +202,8 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
 
         <div className="flex items-center justify-between text-[8px] font-black text-slate-500 pt-2 border-t border-slate-700/50 tracking-widest uppercase mt-auto">
            <span className="flex items-center gap-1.5">
-             <div className={`w-1.5 h-1.5 rounded-full ${hasGeo ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700'}`}></div>
-             {hasGeo ? 'SINCRONIZADO' : config.label}
+             <div className={`w-1.5 h-1.5 rounded-full ${hasGeo || isDownload ? (isDownload ? 'bg-cyan-500' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]') : 'bg-slate-700'}`}></div>
+             {isDownload ? 'VISUALIZAR' : (hasGeo ? 'SINCRONIZADO' : config.label)}
            </span>
            <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 transition-all" />
         </div>
@@ -235,7 +216,10 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Record<string, any>>(item.data || {});
+  
+  const isDownload = groupKey === 'downloads';
   const isPainel = groupKey === 'painel';
+  const previewUrl = isDownload ? getDrivePreviewUrl(editData["Link"] || editData["link"]) : null;
 
   const handleSave = async () => {
       setIsSaving(true);
@@ -245,13 +229,15 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
       } catch (e) { alert("Erro ao salvar"); } finally { setIsSaving(false); }
   };
 
+  const showMetadata = isEditing || !isDownload;
+
   return (
       <div className="fixed inset-0 z-[300] bg-slate-900 overflow-y-auto flex flex-col animate-fadeIn">
           <div className="p-4 sm:p-6 bg-slate-800 border-b border-slate-700 text-white flex justify-between items-center sticky top-0 z-20 shadow-xl">
               <div className="flex items-center gap-4 min-w-0">
                 <button onClick={onClose} className="p-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600"><ArrowLeft size={20} /></button>
                 <div className="min-w-0">
-                  <h2 className="text-lg sm:text-2xl font-black truncate uppercase tracking-tighter">{cleanTagName(editData["Tag"] || editData["Nome"] || "Ficha Técnica")}</h2>
+                  <h2 className="text-lg sm:text-2xl font-black truncate uppercase tracking-tighter">{cleanTagName(editData["Tag"] || editData["Nome"] || editData["Tag do Painel"] || "Ficha Técnica")}</h2>
                   <p className="text-[9px] font-black text-slate-500 tracking-widest uppercase mt-1">{config.label} &bull; Registro de Ativo</p>
                 </div>
               </div>
@@ -261,41 +247,66 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
               </div>
           </div>
           
-          <div className="flex-1 bg-slate-950 p-4 sm:p-12 space-y-8">
-              <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 space-y-6">
-                <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-                  <Database className="text-blue-500" size={20} />
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Informações de Inventário</h4>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Object.entries(editData).map(([key, value]) => {
-                      if (key === "Geolocalização" || key === "Link Maps") return null;
-                      return (
-                        <div key={key} className="space-y-2">
-                          <h5 className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{key}</h5>
-                          {isEditing ? (
-                            <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-white font-bold text-sm outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
-                          ) : (
-                            <p className="text-white font-black text-sm p-3 bg-slate-800/50 border border-slate-800 uppercase break-words">{String(value)}</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
+          <div className="flex-1 bg-slate-950 p-4 sm:p-12 space-y-8 flex flex-col">
+              {/* Visualização de Documento dentro do App - Expansiva */}
+              {isDownload && previewUrl && !isEditing && (
+                 <div className="flex-1 flex flex-col space-y-4">
+                    <div className="flex items-center justify-between bg-slate-900 p-4 border border-slate-800">
+                       <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Eye size={14} className="text-cyan-400" /> Visualizador de Arquivo</h4>
+                       <button onClick={() => window.open(editData["Link"] || editData["link"], '_blank')} className="text-[9px] font-black text-cyan-400 hover:underline uppercase">Baixar Original</button>
+                    </div>
+                    <div className="flex-1 min-h-[500px] bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden relative">
+                       <iframe src={previewUrl} className="w-full h-full border-none bg-white" title="Document Preview" allow="autoplay"></iframe>
+                    </div>
+                 </div>
+              )}
 
-              {editData["Geolocalização"] && (
+              {showMetadata && (
+                <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 space-y-6">
+                  <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+                    <Database className="text-blue-500" size={20} />
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Informações Adicionais</h4>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {Object.entries(editData).map(([key, value]) => {
+                        // Ocultar informações redundantes para Painéis em modo visualização
+                        if (isPainel && !isEditing && (key === "Tag" || key === "Local Selecionável" || key === "Tag do Painel")) return null;
+                        
+                        // Campos de sistema não exibidos individualmente
+                        if (key === "Geolocalização" || key === "Link Maps" || key === "Link" || key === "link") return null;
+                        
+                        return (
+                          <div key={key} className="space-y-2">
+                            <h5 className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{key}</h5>
+                            {isEditing ? (
+                              <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-white font-bold text-sm outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
+                            ) : (
+                              <p className="text-white font-black text-sm p-3 bg-slate-800/50 border border-slate-800 uppercase break-words">{String(value)}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {isEditing && isDownload && (
+                        <div className="space-y-2 col-span-full">
+                           <h5 className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Link de Origem (Drive)</h5>
+                           <input type="text" value={String(editData["Link"] || editData["link"] || "")} onChange={(e) => setEditData({ ...editData, Link: e.target.value })} className="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-white font-mono text-sm outline-none focus:border-blue-500" />
+                        </div>
+                      )}
+                  </div>
+                </div>
+              )}
+
+              {!isDownload && editData["Geolocalização"] && (
                 <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8">
                    <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${editData["Geolocalização"]}`, '_blank')} className="w-full py-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl">
-                      <Navigation size={18} /> Iniciar Rota GPS
+                      <Navigation size={18} /> Traçar Rota GPS
                    </button>
                 </div>
               )}
 
-              {/* Opção de excluir restrita ao grupo de painéis */}
               {isPainel && (
                 <button onClick={async () => { if(confirm("EXCLUIR REGISTRO PERMANENTEMENTE?")) { await onDelete(item.id); onClose(); } }} className="w-full py-4 bg-red-950/20 text-red-500 border border-red-900/30 text-[9px] font-black uppercase flex items-center justify-center gap-2">
-                   <Trash2 size={14} /> Excluir Permanentemente
+                   <Trash2 size={14} /> Excluir Registro do Banco
                 </button>
               )}
           </div>
@@ -321,7 +332,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const unsubs = colls.map((c, idx) => 
       onSnapshot(collection(db, c), (snap) => {
         const newItems = snap.docs.map(d => ({ id: d.id, ...d.data(), groupType: colls[idx] as GroupType } as GroupItem));
-        setAllData(prev => [...prev.filter(i => i.groupType !== colls[idx]), ...newItems]);
+        setAllData(prev => {
+          const other = prev.filter(i => i.groupType !== colls[idx]);
+          return [...other, ...newItems];
+        });
       })
     );
     return () => unsubs.forEach(u => u());
@@ -362,6 +376,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
               "Equipamentos": finalEquip,
               "Observações": formData.obs
           };
+      } else if (currentView === 'downloads') {
+          dataToSave = {
+            "Nome": formData.nome,
+            "Link": formData.link,
+            "Categoria": formData.local || formData.categoria,
+            "Descrição": formData.desc || formData.obs
+          };
       }
 
       if (location && currentView !== 'downloads') {
@@ -394,7 +415,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   if (currentView !== 'home') {
     const config = groupsConfig[currentView as GroupType];
-    const isPainel = currentView === 'painel';
     
     const filteredItems = items.filter(item => {
       const s = normalizeText(searchTerm.trim());
@@ -420,7 +440,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               type="text" 
-              placeholder={`FILTRAR...`} 
+              placeholder={`FILTRAR EM ${config.label.toUpperCase()}...`} 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
               className="w-full pl-12 pr-4 py-5 bg-slate-800 border border-slate-700 outline-none text-white font-black text-sm uppercase tracking-widest focus:border-blue-500 shadow-2xl" 
@@ -448,39 +468,38 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                     <button onClick={() => setIsModalOpen(false)}><X size={20} /></button>
                   </div>
                   <form onSubmit={handleSave} className="p-6 space-y-5 overflow-y-auto bg-slate-900">
-                     {isPainel ? (
+                     {currentView === 'painel' ? (
                        <div className="space-y-4">
-                          {/* ORDEM DO FORMULÁRIO: GPS, TAG, SWITCHES, LOCAL, EQUIPAMENTO, OBS */}
                           <div className="space-y-2">
-                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">1. Sincronização Satélite</label>
+                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">1. Localização Satélite</label>
                              <button type="button" onClick={handleGetLocation} className={`w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all ${location ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-950 border-slate-800 text-blue-400'}`}>
                                 {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
-                                {location ? "GPS SINCRONIZADO" : "ATIVAR LOCALIZAÇÃO"}
+                                {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
                              </button>
                           </div>
 
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-500 uppercase ml-1">2. Tag do Painel</label>
-                             <input placeholder="TAG-XXX" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none font-bold uppercase shadow-inner focus:border-orange-500" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
+                             <input placeholder="Ex: VC-1080KS" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none font-bold uppercase shadow-inner focus:border-orange-500" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
                           </div>
 
                           <div className="grid grid-cols-3 gap-2">
                              <div className="space-y-1">
                                 <label className="text-[8px] font-black text-slate-600 uppercase">SW 1</label>
-                                <input placeholder="IP/TAG" className="w-full p-3 bg-slate-950 border border-slate-800 outline-none text-[10px] font-bold text-white shadow-inner focus:border-blue-500" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
+                                <input placeholder="IP" className="w-full p-3 bg-slate-950 border border-slate-800 outline-none text-[10px] font-bold text-white shadow-inner focus:border-blue-500" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
                              </div>
                              <div className="space-y-1">
                                 <label className="text-[8px] font-black text-slate-600 uppercase">SW 2</label>
-                                <input placeholder="IP/TAG" className="w-full p-3 bg-slate-950 border border-slate-800 outline-none text-[10px] font-bold text-white shadow-inner focus:border-blue-500" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
+                                <input placeholder="IP" className="w-full p-3 bg-slate-950 border border-slate-800 outline-none text-[10px] font-bold text-white shadow-inner focus:border-blue-500" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
                              </div>
                              <div className="space-y-1">
                                 <label className="text-[8px] font-black text-slate-600 uppercase">SW 3</label>
-                                <input placeholder="IP/TAG" className="w-full p-3 bg-slate-950 border border-slate-800 outline-none text-[10px] font-bold text-white shadow-inner focus:border-blue-500" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
+                                <input placeholder="IP" className="w-full p-3 bg-slate-950 border border-slate-800 outline-none text-[10px] font-bold text-white shadow-inner focus:border-blue-500" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
                              </div>
                           </div>
 
                           <div className="space-y-2">
-                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">4. Local / Sistema</label>
+                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">4. Área / Sistema</label>
                              <select required className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs outline-none text-white cursor-pointer shadow-inner focus:border-orange-500" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, equipamento: '', customLocal: ''})}>
                                   <option value="">Selecione Local...</option>
                                   {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
@@ -490,13 +509,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                           </div>
 
                           <div className="space-y-2">
-                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">5. Equipamento</label>
+                             <label className="text-[9px] font-black text-slate-500 uppercase ml-1">5. Ativo Principal</label>
                              <select required disabled={!formData.local} className="w-full p-4 bg-slate-950 border border-slate-800 font-bold uppercase text-xs outline-none disabled:opacity-30 text-white cursor-pointer shadow-inner focus:border-orange-500" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value, customEquipamento: ''})}>
                                   <option value="">Selecione Ativo...</option>
                                   {formData.local && formData.local !== "NOVO" && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-                                  <option value="NOVO">+ NOVO EQUIPAMENTO</option>
+                                  <option value="NOVO">+ NOVO ATIVO</option>
                              </select>
-                             {formData.equipamento === "NOVO" && <input placeholder="NOME DO NOVO EQUIPAMENTO" required value={formData.customEquipamento || ""} className="w-full p-4 bg-blue-900/10 border border-blue-800 text-white font-bold shadow-inner uppercase mt-2" onChange={e => setFormData({...formData, customEquipamento: e.target.value})} />}
+                             {formData.equipamento === "NOVO" && <input placeholder="NOME DO NOVO ATIVO" required value={formData.customEquipamento || ""} className="w-full p-4 bg-blue-900/10 border border-blue-800 text-white font-bold shadow-inner uppercase mt-2" onChange={e => setFormData({...formData, customEquipamento: e.target.value})} />}
                           </div>
 
                           <div className="space-y-2">
@@ -506,14 +525,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                        </div>
                      ) : (
                        <div className="space-y-4">
-                          <input placeholder="TAG / NOME" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none font-bold uppercase shadow-inner" value={formData.tag || formData.nome || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'nome' : 'tag']: e.target.value})} />
-                          <input placeholder="LOCAL / CATEGORIA" className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none font-bold uppercase shadow-inner" value={formData.local || formData.categoria || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'categoria' : 'local']: e.target.value})} />
-                          <input placeholder={currentView === 'downloads' ? "LINK (DRIVE/PDF)" : "IP / SWITCH"} required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none shadow-inner font-bold uppercase" value={formData.link || formData.ip || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'link' : 'ip']: e.target.value})} />
-                          <textarea placeholder="DESCRIÇÃO / OBS..." className="w-full p-4 bg-slate-950 border border-slate-800 outline-none font-bold text-white min-h-[100px] uppercase shadow-inner" value={formData.desc || formData.obs || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'desc' : 'obs']: e.target.value})} />
+                          <input placeholder="IDENTIFICAÇÃO (TAG / NOME)" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none font-bold uppercase shadow-inner" value={formData.tag || formData.nome || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'nome' : 'tag']: e.target.value})} />
+                          {currentView === 'downloads' && (
+                             <input placeholder="URL DO GOOGLE DRIVE" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none shadow-inner font-mono text-xs" value={formData.link || ""} onChange={e => setFormData({...formData, link: e.target.value})} />
+                          )}
+                          <input placeholder="LOCALIZAÇÃO / CATEGORIA" className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none font-bold uppercase shadow-inner" value={formData.local || formData.categoria || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'categoria' : 'local']: e.target.value})} />
+                          {currentView !== 'downloads' && (
+                             <input placeholder="ENDEREÇO IP / REDE" required className="w-full p-4 bg-slate-950 border border-slate-800 text-white outline-none shadow-inner font-bold uppercase" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
+                          )}
+                          <textarea placeholder="DESCRIÇÃO ADICIONAL..." className="w-full p-4 bg-slate-950 border border-slate-800 outline-none font-bold text-white min-h-[100px] uppercase shadow-inner" value={formData.desc || formData.obs || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'desc' : 'obs']: e.target.value})} />
                        </div>
                      )}
                      <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest shadow-2xl active:translate-y-1">
-                        {loading ? <Loader2 className="animate-spin inline mr-2" /> : <Save className="inline mr-2" />} SALVAR NO BANCO
+                        {loading ? <Loader2 className="animate-spin inline mr-2" /> : <Save className="inline mr-2" />} FINALIZAR CADASTRO
                      </button>
                   </form>
                </div>
@@ -555,18 +579,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <div className="flex items-center gap-5">
            <div className="p-3 bg-blue-600 text-white shadow-[8px_8px_0px_rgba(30,58,138,0.5)]"><Database size={24} /></div>
            <div>
-             <h1 className="text-xl sm:text-4xl font-black uppercase leading-none">TagFinder <span className="text-blue-500">Enterprise</span></h1>
-             <p className="text-[7px] sm:text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mt-1">Asset Intelligence System &bull; 2024</p>
+             <h1 className="text-xl sm:text-4xl font-black uppercase leading-none text-white tracking-tighter">TagFinder <span className="text-blue-500">Enterprise</span></h1>
+             <p className="text-[7px] sm:text-[10px] font-black text-slate-600 uppercase tracking-[0.4em] mt-1">Industrial Intelligence Engine &bull; 2024</p>
            </div>
         </div>
-        <button onClick={() => signOut(auth)} className="p-4 bg-slate-900 border border-slate-800 text-slate-500 hover:text-red-500 transition-all shadow-xl"><LogOut size={20} /></button>
+        <button onClick={() => signOut(auth)} className="p-4 bg-slate-900 border border-slate-800 text-slate-500 hover:text-red-500 transition-all shadow-xl active:scale-95"><LogOut size={20} /></button>
       </header>
 
       <div className="mb-10 animate-fadeIn">
         <h2 className="text-3xl sm:text-6xl font-black tracking-tighter uppercase leading-none text-white">Olá, <span className="text-blue-600">{user.email?.split('@')[0]}</span></h2>
         <div className="h-1.5 w-20 bg-blue-600 mt-5 mb-8"></div>
         
-        {/* Mapa Geral Satélite - Único acesso via Home */}
         <button 
           onClick={() => setIsMapModalOpen(true)}
           className="group relative flex items-center gap-4 bg-slate-900/60 border border-slate-800 p-6 rounded-none hover:border-blue-500/50 transition-all shadow-2xl overflow-hidden active:translate-y-1 w-full sm:max-w-md"
@@ -574,7 +597,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           <div className="p-3 bg-blue-600 text-white shadow-lg group-hover:scale-110 transition-transform"><Globe size={24} /></div>
           <div className="text-left">
              <h3 className="text-lg font-black uppercase text-white tracking-tighter">MAPA GERAL SATÉLITE</h3>
-             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Clique para visualizar todos os ativos no mapa</p>
+             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Visualize todos os ativos técnicos no terreno</p>
           </div>
           <ArrowRight className="ml-auto text-slate-700 group-hover:text-blue-500 transition-colors" size={24} />
         </button>
@@ -586,13 +609,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
              <div className="absolute top-0 right-0 p-8 bg-white/5 blur-3xl -mr-6 -mt-6"></div>
              <div className={`p-4 mb-6 ${group.lightColor} ${group.textColor} border border-slate-700 group-hover:scale-110 transition-transform`}><group.icon size={22} /></div>
              <h3 className="text-[11px] sm:text-lg font-black uppercase mb-2 text-white group-hover:text-blue-400 transition-colors leading-none">{group.label}</h3>
-             <div className="flex items-center gap-2 text-[8px] sm:text-[9px] font-black text-slate-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all mt-auto">Acessar <ArrowRight size={10} /></div>
+             <div className="flex items-center gap-2 text-[8px] sm:text-[9px] font-black text-slate-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all mt-auto">Explorar <ArrowRight size={10} /></div>
           </button>
         ))}
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-900 text-center">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Industrial Intelligence Engine &bull; V3.4.0</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V3.6.0</p>
       </footer>
     </div>
   );
