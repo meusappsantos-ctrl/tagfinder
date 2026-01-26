@@ -20,7 +20,7 @@ import {
   MapPin, Loader2, Edit, X, Globe, Trash2, Crosshair, Server, 
   CheckCircle, Database, Activity, Locate, 
   Link, Download, 
-  Navigation, Eye, MessageSquare
+  Navigation, Eye, MessageSquare, AlertTriangle
 } from 'lucide-react';
 
 declare const L: any;
@@ -70,6 +70,47 @@ const getDrivePreviewUrl = (url: string) => {
   if (!url) return null;
   const match = url.match(/(?:\/d\/|id=)([\w-]+)/);
   return match ? `https://drive.google.com/file/d/${match[1]}/preview` : null;
+};
+
+// Componente de Confirmação Customizado
+const ConfirmModal: React.FC<{ 
+  isOpen: boolean; 
+  title: string; 
+  message: string; 
+  onConfirm: () => void; 
+  onCancel: () => void; 
+  isLoading?: boolean;
+}> = ({ isOpen, title, message, onConfirm, onCancel, isLoading }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-slate-900 border border-red-900/50 w-full max-w-sm shadow-2xl">
+        <div className="p-6 space-y-4">
+          <div className="flex items-center gap-3 text-red-500">
+             <AlertTriangle size={24} />
+             <h3 className="font-black uppercase tracking-widest text-sm">{title}</h3>
+          </div>
+          <p className="text-slate-400 text-xs font-bold leading-relaxed uppercase tracking-tight">{message}</p>
+        </div>
+        <div className="grid grid-cols-2 border-t border-slate-800">
+          <button 
+            onClick={onCancel} 
+            disabled={isLoading}
+            className="p-4 text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest transition-colors border-r border-slate-800"
+          >
+            CANCELAR
+          </button>
+          <button 
+            onClick={onConfirm}
+            disabled={isLoading}
+            className="p-4 text-[10px] font-black text-red-500 hover:bg-red-500 hover:text-white uppercase tracking-widest transition-all"
+          >
+            {isLoading ? <Loader2 size={14} className="animate-spin mx-auto" /> : "CONFIRMAR EXCLUSÃO"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const HighlightedText: React.FC<{ text: string; highlight: string; className?: string }> = ({ text, highlight, className = "" }) => {
@@ -146,7 +187,13 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
   );
 };
 
-const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; onDelete: (id: string) => void; searchHighlight: string; }> = ({ item, config, onSelect, onDelete, searchHighlight }) => {
+const ItemCard: React.FC<{ 
+  item: GroupItem; 
+  config: any; 
+  onSelect: () => void; 
+  onDeleteRequest: (item: GroupItem) => void; 
+  searchHighlight: string; 
+}> = ({ item, config, onSelect, onDeleteRequest, searchHighlight }) => {
   const data = item.data || {};
   const isPainel = config.id === 'painel';
   const isDownload = config.id === 'downloads';
@@ -167,7 +214,7 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
           <div className="flex items-center gap-1">
              {isPainel && (
                 <button 
-                  onClick={(e) => { e.stopPropagation(); if(confirm("Deseja excluir este registro?")) onDelete(item.id); }} 
+                  onClick={(e) => { e.stopPropagation(); onDeleteRequest(item); }} 
                   className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 transition-all"
                 >
                   <Trash2 size={16} />
@@ -212,7 +259,14 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
   );
 };
 
-const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; user: User; onClose: () => void; onDelete: (id: string) => void; }> = ({ item, groupKey, config, user, onClose, onDelete }) => {
+const ItemDetail: React.FC<{ 
+  item: GroupItem; 
+  groupKey: string; 
+  config: any; 
+  user: User; 
+  onClose: () => void; 
+  onDeleteRequest: (item: GroupItem) => void; 
+}> = ({ item, groupKey, config, user, onClose, onDeleteRequest }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Record<string, any>>(item.data || {});
@@ -248,7 +302,6 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
           </div>
           
           <div className="flex-1 bg-slate-950 p-4 sm:p-12 space-y-8 flex flex-col">
-              {/* Visualização de Documento dentro do App - Expansiva */}
               {isDownload && previewUrl && !isEditing && (
                  <div className="flex-1 flex flex-col space-y-4">
                     <div className="flex items-center justify-between bg-slate-900 p-4 border border-slate-800">
@@ -269,10 +322,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                       {Object.entries(editData).map(([key, value]) => {
-                        // Ocultar informações redundantes para Painéis em modo visualização
                         if (isPainel && !isEditing && (key === "Tag" || key === "Local Selecionável" || key === "Tag do Painel")) return null;
-                        
-                        // Campos de sistema não exibidos individualmente
                         if (key === "Geolocalização" || key === "Link Maps" || key === "Link" || key === "link") return null;
                         
                         return (
@@ -305,7 +355,10 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
               )}
 
               {isPainel && (
-                <button onClick={async () => { if(confirm("EXCLUIR REGISTRO PERMANENTEMENTE?")) { await onDelete(item.id); onClose(); } }} className="w-full py-4 bg-red-950/20 text-red-500 border border-red-900/30 text-[9px] font-black uppercase flex items-center justify-center gap-2">
+                <button 
+                  onClick={() => onDeleteRequest(item)}
+                  className="w-full py-4 bg-red-950/20 text-red-500 border border-red-900/30 text-[9px] font-black uppercase flex items-center justify-center gap-2"
+                >
                    <Trash2 size={14} /> Excluir Registro do Banco
                 </button>
               )}
@@ -319,6 +372,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [items, setItems] = useState<GroupItem[]>([]);
   const [allData, setAllData] = useState<GroupItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<GroupItem | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<GroupItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -404,12 +459,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     } catch (e) { alert("Erro ao salvar"); } finally { setLoading(false); }
   };
 
-  const handleDeleteItem = async (id: string) => {
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteDoc(doc(db, currentView, id));
+      await deleteDoc(doc(db, currentView, itemToDelete.id));
+      setItemToDelete(null);
       setSelectedItem(null);
     } catch (e) {
       alert("Erro ao excluir registro.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -454,7 +514,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 item={item} 
                 config={config} 
                 onSelect={() => setSelectedItem(item)} 
-                onDelete={handleDeleteItem}
+                onDeleteRequest={setItemToDelete}
                 searchHighlight={searchTerm} 
               />
             ))}
@@ -552,9 +612,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             config={config} 
             user={user} 
             onClose={() => setSelectedItem(null)} 
-            onDelete={handleDeleteItem}
+            onDeleteRequest={setItemToDelete}
           />
         )}
+        
+        <ConfirmModal 
+          isOpen={!!itemToDelete}
+          title="Atenção: Exclusão Permanente"
+          message={`VOCÊ ESTÁ PRESTES A EXCLUIR O REGISTRO "${cleanTagName(itemToDelete?.data?.["Tag"] || itemToDelete?.data?.["Nome"] || "")}". ESTA AÇÃO É IRREVERSÍVEL E REMOVERÁ TODOS OS DADOS DO BANCO.`}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setItemToDelete(null)}
+          isLoading={isDeleting}
+        />
       </div>
     );
   }
@@ -615,7 +684,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-900 text-center">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V3.6.0</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V3.7.0</p>
       </footer>
     </div>
   );
