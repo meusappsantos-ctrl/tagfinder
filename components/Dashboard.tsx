@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, signOut } from 'firebase/auth';
 import * as firestore from 'firebase/firestore';
@@ -47,14 +46,110 @@ type ViewState = 'home' | GroupType;
 const GOOGLE_HYBRID_URL = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
 const SATELLITE_ATTRIBUTION = '&copy; Google Maps';
 
+// Banco de dados técnico completo conforme fornecido
 const SYSTEM_DATA: Record<string, string[]> = {
-  "5ª BRITAGEM": ["bm-1080ks-11", "bm-1080ks-12", "bm-1080ks-13", "tr-1080ks-80", "tr-1080ks-81", "tr-1080ks-82", "tr-1080ks-83", "tr-1080ks-84", "tr-1085ks-36"],
-  "CASA DE TRANSFERENCIA": ["ee-1084ks-01", "se-1082ks-01", "se-1082ks-02", "se-1082ks-03", "se-1082ks-04", "tr-1080ks-37", "tr-1082ks-01"],
-  "OVERLAND": ["ee-1083ks-01", "ee-1084ks-01", "se-1083ks-02"],
-  "SISTEMA 1": ["vc-1080ks-13.06", "bm-1080ks-04"],
-  "SISTEMA 2": ["ee-1080ks-02", "bm-1081ks-02"],
-  "SISTEMA 3": ["ee-1081ks-03", "bm-1081ks-03"],
-  "SISTEMA 4": ["ee-1081ks-01", "bm-1081ks-01"]
+  "SISTEMA 1": [
+    "TR-1081KS-03 (BC)",
+    "TR-1082KS-13 (BCC)",
+    "BELTI EE-1080KS-04 (MBW)",
+    "BM-1080KS-04",
+    "SE-1081KS-17",
+    "SE-1081KS-03",
+    "SE-1081KS-74",
+    "SE-1081KS-13",
+    "SE-1082KS-95 -(DRIVE)"
+  ],
+  "SISTEMA 2": [
+    "TR-1081KS-04",
+    "TR-1081KS-52",
+    "TR-1081KS-14 (bsm)",
+    "TR-1081KS-05 (bsm)",
+    "SE-1081KS-52",
+    "SE-1081KS-04",
+    "SE-1081KS-76",
+    "BELTI EE-1080KS-02",
+    "BM-1081KS-02",
+    "SE-1081KS-50",
+    "SE-1081KS-51",
+    "SE-1081KS-56",
+    "SE-1081KS-27",
+    "SE-1081KS-97",
+    "SE-1081KS-14",
+    "SE-1081KS-18 (bsm)",
+    "SE-1080KS-51 (bsm)"
+  ],
+  "SISTEMA 3": [
+    "TR-1081KS-11",
+    "TR-1081KS-01",
+    "BM-1081KS-03",
+    "BELTI EE-1081KS03 (MBW)",
+    "SE-1081KS-01",
+    "SE-1081KS-70",
+    "SE-1081KS-15",
+    "SE-1081KS-21",
+    "SE-1081KS-11",
+    "SE-1081KS-91"
+  ],
+  "SISTEMA 4": [
+    "TR-1081KS-02",
+    "TR-1081KS-12",
+    "BM-1081KS-01",
+    "BELTI EE-1081KS-01",
+    "SE-1081KS-02",
+    "SE-1081KS-72",
+    "SE-1081KS-12",
+    "SE-1081KS-23",
+    "SE-1081KS-93"
+  ],
+  "5ª BRITAGEM": [
+    "BM-1080KS-13",
+    "BM-1080KS-12",
+    "BM-1080KS-11",
+    "TR-1080KS-81",
+    "TR-1085KS-36",
+    "TR-1080KS-83",
+    "TR-1080KS-88",
+    "TR-1080KS-87",
+    "TR-1080KS-82",
+    "TR-1080KS-85",
+    "TR-1080KS-86",
+    "TR-1080KS-80",
+    "TR-1080KS-84"
+  ],
+  "CASA DE TRANSFERENCIA": [
+    "TR-1082KS-01",
+    "TR-1082KS-02",
+    "TR-1082KS-03",
+    "TR-1082KS-04",
+    "TR-1082KS-05",
+    "TR-1082KS-06",
+    "TR-1080KS-37",
+    "TR-1085KS-01",
+    "TR-1085KS-04",
+    "TR-1083KS-01",
+    "TR-1084KS-01",
+    "TR-1085KS-05",
+    "SE-1084KS-01",
+    "SE-1083KS-01",
+    "SE-1082KS-02",
+    "SE-1082KS-01",
+    "SE-1085KS-23",
+    "SE-1082KS-03",
+    "SE-1082KS-04",
+    "SE-6021KS-01",
+    "SE-1085KS-22"
+  ],
+  "OVERLAND": [
+    "TR-1083KS-03",
+    "TR-1083KS-04",
+    "SE-1084KS-22",
+    "SE-1084KS-21",
+    "TR-1084KS-02",
+    "TR-1083KS-02",
+    "EE-1084KS-01 (mts)",
+    "EE-1083KS-01 (mts)",
+    "SE-1083KS-02"
+  ]
 };
 
 const groupsConfig = {
@@ -68,7 +163,6 @@ const groupsConfig = {
 
 const normalizeText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-// Added missing getDriveFileId function to fix reference error on line 232
 const getDriveFileId = (url: string) => {
   if (!url) return null;
   const regex = /(?:\/d\/|id=)([\w-]+)/;
@@ -172,7 +266,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
           if (item.groupType === 'tw_local') color = '#a855f7';
           if (item.groupType === 'downloads') color = '#06b6d4';
           
-          const tagToDisplay = cleanTagName(item.data?.["Tag"] || item.data?.["Nome"] || "S/ TAG");
+          const tagToDisplay = cleanTagName(item.data?.["Tag"] || item.data?.["Tag do Painel"] || item.data?.["Nome"] || "S/ TAG");
           
           const marker = L.circleMarker([lat, lng], { 
               radius: 10, 
@@ -251,7 +345,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
               finalData["Geolocalização"] = `${location.lat.toFixed(7)}, ${location.lng.toFixed(7)}`;
               finalData["Link Maps"] = `https://maps.google.com/?q=${location.lat},${location.lng}`;
           }
-          const cleanTitle = cleanTagName(finalData["Tag"] || finalData["Nome"] || item.content);
+          const cleanTitle = cleanTagName(finalData["Tag"] || finalData["Tag do Painel"] || finalData["Nome"] || item.content);
           await updateDoc(doc(db, groupKey, item.id), { data: finalData, content: cleanTitle });
           setIsEditing(false);
       } catch (e) { alert("ERRO AO SALVAR."); } finally { setIsSaving(false); }
@@ -260,7 +354,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   return (
       <div className="fixed inset-0 z-[300] bg-slate-900 overflow-y-auto animate-fadeIn flex flex-col">
           <div className={`p-6 sm:p-10 bg-gradient-to-r ${config.gradient} text-white flex justify-between items-center sticky top-0 z-20 shadow-xl`}>
-              <div className="flex items-center gap-4"><button onClick={onClose} className="p-2 sm:p-3 bg-white/20 rounded-xl active:scale-95 transition-all shadow-lg"><ArrowLeft size={24} /></button><div><h2 className="text-xl sm:text-2xl font-black uppercase truncate max-w-[200px]">{isEditing ? "EDITAR" : (cleanTagName(editData["Tag"] || editData["Nome"] || "DETALHES"))}</h2><span className="text-[9px] font-black uppercase opacity-60 tracking-widest">{config.label}</span></div></div>
+              <div className="flex items-center gap-4"><button onClick={onClose} className="p-2 sm:p-3 bg-white/20 rounded-xl active:scale-95 transition-all shadow-lg"><ArrowLeft size={24} /></button><div><h2 className="text-xl sm:text-2xl font-black uppercase truncate max-w-[200px]">{isEditing ? "EDITAR" : (cleanTagName(editData["Tag"] || editData["Tag do Painel"] || editData["Nome"] || "DETALHES"))}</h2><span className="text-[9px] font-black uppercase opacity-60 tracking-widest">{config.label}</span></div></div>
               <div className="flex gap-2">
                 {!isEditing ? (
                   <button onClick={() => setIsEditing(true)} className="px-5 py-2.5 bg-white/20 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 active:scale-95 transition-all shadow-lg"><Edit size={16} /> EDITAR</button>
@@ -275,7 +369,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                          <div className="flex items-center gap-6">
                             <div className={`p-6 rounded-3xl ${config.lightColor} ${config.textColor} shadow-xl border border-white/10`}><config.icon size={40} /></div>
                             <div>
-                               <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{cleanTagName(editData["Tag"] || editData["Nome"] || "Ficha Técnica")}</h3>
+                               <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{cleanTagName(editData["Tag"] || editData["Tag do Painel"] || editData["Nome"] || "Ficha Técnica")}</h3>
                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1 flex items-center gap-2"><CheckCircle size={12} className="text-emerald-500" /> Registro Ativo no Sistema</p>
                             </div>
                          </div>
@@ -339,7 +433,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                         )}
                     </div>
                   )}
-                  {location && !isEditing && !isDownload && <MiniMapPreview lat={location.lat} lng={location.lng} tag={editData["Tag"]} />}
+                  {location && !isEditing && !isDownload && <MiniMapPreview lat={location.lat} lng={location.lng} tag={editData["Tag"] || editData["Tag do Painel"]} />}
                   <div className="space-y-6">
                       <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2 flex items-center gap-2"><Database size={14} className="text-blue-500" /> Detalhes Técnicos do Equipamento</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -368,7 +462,7 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; s
   const isDownload = config.id === 'downloads';
   const isPainel = config.id === 'painel';
   
-  const tagValue = cleanTagName(data["Tag"] || data["Nome"] || item.content);
+  const tagValue = cleanTagName(data["Tag do Painel"] || data["Tag"] || data["Nome"] || item.content);
   const hasGeo = !!data["Geolocalização"];
 
   return (
@@ -416,10 +510,10 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; s
                     </div>
                 )}
                 <div className="flex flex-wrap gap-1">
-                    {['Switch1', 'Switch2', 'Switch3'].map(sw => data[sw] && (
+                    {['Switch 1', 'Switch 2', 'Switch 3'].map(sw => data[sw] && (
                         <div key={sw} className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-700/30 rounded text-[7px] text-slate-300 font-bold border border-white/5">
                             <Activity size={10} className="text-blue-400" />
-                            <span className="uppercase">{sw.replace('Switch', 'SW')}: <HighlightedText text={data[sw]} highlight={searchHighlight} /></span>
+                            <span className="uppercase">{sw.replace('Switch ', 'SW')}: <HighlightedText text={data[sw]} highlight={searchHighlight} /></span>
                         </div>
                     ))}
                 </div>
@@ -520,7 +614,16 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
       const finalEquip = formData.equipamento === "NOVO" ? formData.customEquipamento : formData.equipamento;
       
       if (groupKey === 'painel') {
-          data = { "Tag do Painel": formData.tag, "Tag": formData.tag, "Local Selecionável": finalLocal, "Switch 1": formData.switch1, "Switch1": formData.switch1, "Switch 2": formData.switch2, "Switch2": formData.switch2, "Switch 3": formData.switch3, "Switch3": formData.switch3, "Equipamento": finalEquip, "Observação": formData.obs };
+          data = { 
+            "Tag do Painel": formData.tag, 
+            "Tag": formData.tag, 
+            "Local Selecionável": finalLocal, 
+            "Switch 1": formData.switch1, 
+            "Switch 2": formData.switch2, 
+            "Switch 3": formData.switch3, 
+            "Equipamento": finalEquip, 
+            "Observação": formData.obs 
+          };
       } else if (groupKey === 'tw_local') {
           data = { "Tag": formData.tag, "Local": finalLocal, "Descrição": formData.desc };
       } else if (groupKey === 'downloads') {
@@ -545,7 +648,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
       setIsModalOpen(false);
       setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '', obs: '', desc: '', link: '', nome: '' });
       setLocation(null);
-    } catch (e) { alert('Erro'); } finally { setLoading(false); }
+    } catch (e) { alert('Erro ao salvar.'); } finally { setLoading(false); }
   };
 
   const filteredItems = items.filter(item => {
@@ -609,9 +712,20 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
             <form onSubmit={handleSave} className="p-6 sm:p-8 space-y-6">
               {groupKey === 'painel' ? (
                 <div className="space-y-6">
+                  {/* PASSO 1: LOCALIZAÇÃO */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2 tracking-widest"><MapPin size={12} /> Localização GPS (Etapa 1)</label>
+                    <button type="button" onClick={handleGetLocation} className="w-full py-5 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-[11px] font-black uppercase text-blue-400 flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg hover:bg-blue-500/20">
+                      {gettingLocation ? <Loader2 className="animate-spin" size={20}/> : location ? <CheckCircle className="text-emerald-500" size={20}/> : <Crosshair size={20}/>}
+                      {location ? "COORDENADAS SINCRONIZADAS" : "ATIVAR LOCALIZAÇÃO DO PAINEL"}
+                    </button>
+                    {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
+                  </div>
+
+                  {/* PASSO 2: IDENTIFICAÇÃO */}
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest">Tag do Painel</label>
-                    <input type="text" placeholder="Ex: vc-1080ks-13.06" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
+                    <input type="text" placeholder="Ex: VC-1080KS-13.06" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -629,42 +743,44 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest">Local Selecionável</label>
-                    <select required value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black uppercase outline-none focus:border-blue-500 appearance-none cursor-pointer shadow-inner">
-                      <option value="">Selecione Local...</option>
-                      {Object.keys(SYSTEM_DATA).map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                      <option value="NOVO">+ CADASTRAR NOVO LOCAL</option>
-                    </select>
+                  {/* PASSO 3: LOCALIZAÇÃO TÉCNICA E EQUIPAMENTO DEPENDENTE */}
+                  <div className="space-y-4 p-4 bg-slate-900/40 rounded-3xl border border-slate-700/50">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest">Local Selecionável</label>
+                      <select required value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black uppercase outline-none focus:border-blue-500 appearance-none cursor-pointer shadow-inner">
+                        <option value="">Selecione a área...</option>
+                        {Object.keys(SYSTEM_DATA).map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                        <option value="NOVO">+ CADASTRAR NOVO LOCAL...</option>
+                      </select>
+                      {formData.local === "NOVO" && (
+                        <input type="text" placeholder="Digite o nome do novo local" required value={formData.customLocal} onChange={e => setFormData({...formData, customLocal: e.target.value})} className="w-full mt-2 px-5 py-4 bg-slate-700/50 border border-blue-500/50 rounded-2xl text-white text-xs font-black uppercase outline-none" />
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest">Equipamento (Vínculo Industrial)</label>
+                      <select required disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black uppercase outline-none focus:border-blue-500 appearance-none cursor-pointer shadow-inner disabled:opacity-30 disabled:cursor-not-allowed">
+                        <option value="">Selecione o ativo...</option>
+                        {formData.local && formData.local !== "NOVO" && (SYSTEM_DATA[formData.local] || []).map(eq => (
+                          <option key={eq} value={eq}>{eq}</option>
+                        ))}
+                        <option value="NOVO">+ CADASTRAR NOVO EQUIPAMENTO...</option>
+                      </select>
+                      {formData.equipamento === "NOVO" && (
+                        <input type="text" placeholder="Digite a tag do novo equipamento" required value={formData.customEquipamento} onChange={e => setFormData({...formData, customEquipamento: e.target.value})} className="w-full mt-2 px-5 py-4 bg-slate-700/50 border border-blue-500/50 rounded-2xl text-white text-xs font-black uppercase outline-none" />
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest">Equipamento (Dependente)</label>
-                    <select required disabled={!formData.local} value={formData.equipamento} onChange={e => setFormData({...formData, equipamento: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black uppercase outline-none focus:border-blue-500 appearance-none cursor-pointer shadow-inner disabled:opacity-30">
-                      <option value="">Selecione Ativo...</option>
-                      {formData.local && formData.local !== "NOVO" && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-                      <option value="NOVO">+ CADASTRAR NOVO ATIVO</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2 tracking-widest"><MapPin size={12} /> Localização GPS</label>
-                    <button type="button" onClick={handleGetLocation} className="w-full py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-[10px] font-black uppercase text-blue-400 flex items-center justify-center gap-3 active:scale-95 transition-all shadow-inner">
-                      {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
-                      {location ? "GPS ATIVADO E SINCRONIZADO" : "ATIVAR LOCALIZAÇÃO (GPS)"}
-                    </button>
-                    {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2 tracking-widest"><MessageSquare size={12} /> Observação</label>
-                    <textarea placeholder="Notas técnicas, pendências ou detalhes da instalação..." value={formData.obs} onChange={e => setFormData({...formData, obs: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-bold outline-none focus:border-blue-500 min-h-[100px] shadow-inner" />
+                    <label className="text-[10px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2 tracking-widest"><MessageSquare size={12} /> Observação Técnica</label>
+                    <textarea placeholder="Notas sobre a instalação, pendências ou detalhes da área..." value={formData.obs} onChange={e => setFormData({...formData, obs: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-bold outline-none focus:border-blue-500 min-h-[100px] shadow-inner" />
                   </div>
                 </div>
               ) : groupKey === 'tw_local' ? (
                 <div className="space-y-5">
                   <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase">Tag / Marco TW (ex: TW-1080KS-50)</label>
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase">Tag / Marco TW (ex: TW-01)</label>
                       <input type="text" placeholder="TW-..." required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm font-black uppercase outline-none focus:border-blue-500 shadow-inner" />
                   </div>
                   <div className="space-y-1">
