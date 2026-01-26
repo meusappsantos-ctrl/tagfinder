@@ -9,17 +9,15 @@ const {
   onSnapshot, 
   addDoc, 
   serverTimestamp, 
-  deleteDoc, 
   updateDoc, 
   doc, 
   writeBatch,
-  Timestamp
 } = firestore as any;
 
 import { auth, db } from '../services/firebase';
 import { 
   LogOut, Tv, Radio, Cpu, ArrowLeft, ArrowRight, Search, Plus, Save, 
-  MapPin, Loader2, Edit, X, Globe, Trash2, Crosshair, Server, 
+  MapPin, Loader2, Edit, X, Globe, Crosshair, Server, 
   CheckCircle, Database, Clock, Activity, Locate, 
   FilterX, IdCard, Link, FileText, Download, Eye, 
   Signal, Upload, MessageSquare, Navigation, ExternalLink, FileDown
@@ -78,7 +76,6 @@ const getDriveFileId = (url: string) => {
 
 const cleanTagName = (tag: string) => {
   if (!tag) return "";
-  // Limpeza radical de prefixos conforme solicitado (ex: remove "Item:", "Tag:", "TW:")
   return String(tag).replace(/^(Item|Tag|Ativo|ITEM|TW):\s*/gi, '').split('|')[0].trim();
 };
 
@@ -191,7 +188,6 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
               offset: [0, -14] 
           });
 
-          // Redirecionamento Direto ao clicar no marcador
           marker.on('click', (e) => {
               L.DomEvent.stopPropagation(e);
               onSelectItem(item);
@@ -222,7 +218,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
   );
 };
 
-const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; user: User; onClose: () => void; onDelete: (id: string) => void; }> = ({ item, groupKey, config, user, onClose, onDelete }) => {
+const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; user: User; onClose: () => void; }> = ({ item, groupKey, config, user, onClose }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Record<string, any>>(() => {
@@ -239,7 +235,6 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   });
 
   const isDownload = groupKey === 'downloads';
-  const isTW = groupKey === 'tw_local';
   const originalLink = item.data?.["Link"] || "";
   const driveId = getDriveFileId(originalLink);
   
@@ -266,17 +261,13 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
               <div className="flex items-center gap-4"><button onClick={onClose} className="p-2 sm:p-3 bg-white/20 rounded-xl active:scale-95 transition-all shadow-lg"><ArrowLeft size={24} /></button><div><h2 className="text-xl sm:text-2xl font-black uppercase truncate max-w-[200px]">{isEditing ? "EDITAR" : (cleanTagName(editData["Tag"] || editData["Nome"] || "DETALHES"))}</h2><span className="text-[9px] font-black uppercase opacity-60 tracking-widest">{config.label}</span></div></div>
               <div className="flex gap-2">
                 {!isEditing ? (
-                  <div className="flex gap-2">
-                    <button onClick={() => { if(confirm("Remover permanentemente?")) { onDelete(item.id); onClose(); } }} className="p-3 bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl hover:bg-red-500 transition-all active:scale-95"><Trash2 size={20} /></button>
-                    <button onClick={() => setIsEditing(true)} className="px-5 py-2.5 bg-white/20 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 active:scale-95 transition-all shadow-lg"><Edit size={16} /> EDITAR</button>
-                  </div>
+                  <button onClick={() => setIsEditing(true)} className="px-5 py-2.5 bg-white/20 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 active:scale-95 transition-all shadow-lg"><Edit size={16} /> EDITAR</button>
                 ) : <button onClick={() => setIsEditing(false)} className="p-3 bg-white/10 rounded-xl active:scale-95 transition-all shadow-lg"><X size={20} /></button>}
               </div>
           </div>
           <div className="flex-1 overflow-y-auto bg-slate-950 flex flex-col pb-10">
               <div className="p-6 sm:p-12 space-y-10">
                   
-                  {/* Destaque Técnico para Painéis e Ativos Industriais */}
                   <div className="bg-blue-500/5 border border-blue-500/10 p-8 rounded-[2.5rem] relative overflow-hidden shadow-2xl">
                       <div className="absolute top-0 right-0 p-12 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
                       <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center justify-between">
@@ -360,9 +351,8 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                       </div>
                   </div>
                   {isEditing && (
-                      <div className="grid grid-cols-2 gap-4 pt-10">
-                          <button onClick={() => { if(confirm("Remover permanentemente?")) { onDelete(item.id); onClose(); } }} className="py-5 rounded-2xl bg-red-600/10 text-red-500 border border-red-500/20 font-black uppercase text-[10px] flex justify-center items-center gap-2 active:scale-95 transition-all">EXCLUIR REGISTRO</button>
-                          <button onClick={handleSave} disabled={isSaving} className={`py-5 rounded-2xl text-white font-black uppercase text-[10px] ${config.color} shadow-2xl flex justify-center items-center gap-3 active:scale-95 transition-all`}>{isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16} />} SALVAR ALTERAÇÕES</button>
+                      <div className="pt-10 flex justify-center">
+                          <button onClick={handleSave} disabled={isSaving} className={`max-w-md w-full py-5 rounded-2xl text-white font-black uppercase text-[10px] ${config.color} shadow-2xl flex justify-center items-center gap-3 active:scale-95 transition-all`}>{isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16} />} SALVAR ALTERAÇÕES</button>
                       </div>
                   )}
               </div>
@@ -371,7 +361,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   );
 };
 
-const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; onDelete: (id: string) => void; searchHighlight: string; }> = ({ item, config, onSelect, onDelete, searchHighlight }) => {
+const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; searchHighlight: string; }> = ({ item, config, onSelect, searchHighlight }) => {
   const data = item.data || {};
   const isTW = config.id === 'tw_local';
   const isDownload = config.id === 'downloads';
@@ -388,12 +378,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
             <HighlightedText text={tagValue} highlight={searchHighlight} />
           </h3>
           <div className="flex items-center gap-1">
-            <button 
-              onClick={(e) => { e.stopPropagation(); if(confirm("Deseja excluir este registro?")) onDelete(item.id); }} 
-              className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-            >
-              <Trash2 size={16} />
-            </button>
             <div className={`p-2 rounded-lg ${hasGeo || isDownload ? (isDownload ? 'bg-cyan-500/10 text-cyan-500' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-slate-700 text-slate-500'}`}>
               {isDownload ? <FileText size={14} /> : (isTW ? <Locate size={14} /> : <MapPin size={14} />)}
             </div>
@@ -469,7 +453,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     return onSnapshot(q, (snap) => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })) as GroupItem[]));
   }, [groupKey]);
 
-  // Se initialSelectedItem mudar (ex: do mapa), atualiza o estado local
   useEffect(() => {
     if (initialSelectedItem) setSelectedItem(initialSelectedItem);
   }, [initialSelectedItem]);
@@ -564,14 +547,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     } catch (e) { alert('Erro'); } finally { setLoading(false); }
   };
 
-  const handleDeleteItem = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, groupKey, id));
-    } catch (e) {
-      alert("Erro ao excluir registro.");
-    }
-  };
-
   const filteredItems = items.filter(item => {
     const s = normalizeText(searchTerm.trim());
     if (!s) return true;
@@ -579,7 +554,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     return s.split(/\s+/).every(t => searchable.includes(t));
   });
 
-  if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => { setSelectedItem(null); if(initialSelectedItem) onBack(); }} onDelete={handleDeleteItem} />;
+  if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => { setSelectedItem(null); if(initialSelectedItem) onBack(); }} />;
 
   return (
     <div className="pb-24 animate-fadeIn">
@@ -620,7 +595,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
 
       {filteredItems.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onDelete={handleDeleteItem} onSelect={() => setSelectedItem(item)} searchHighlight={searchTerm} />)}
+          {filteredItems.map(item => <ItemCard key={item.id} item={item} config={config} onSelect={() => setSelectedItem(item)} searchHighlight={searchTerm} />)}
         </div>
       ) : (
         <div className="py-20 flex flex-col items-center justify-center text-center opacity-50"><FilterX size={64} className="text-slate-700 mb-6" /><h3 className="text-xl font-black text-white uppercase tracking-tight">Sem resultados</h3></div>
