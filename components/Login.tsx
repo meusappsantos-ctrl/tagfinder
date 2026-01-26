@@ -15,142 +15,65 @@ const Login: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
     try {
-      if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-      }
-    } catch (err: unknown) {
-      const firebaseError = err as AuthError;
-      console.error(firebaseError);
-      
-      let errorMessage = 'Ocorreu um erro. Tente novamente.';
-      if (firebaseError.code === 'auth/invalid-email') errorMessage = 'Email inválido.';
-      if (firebaseError.code === 'auth/user-not-found') errorMessage = 'Usuário não encontrado.';
-      if (firebaseError.code === 'auth/wrong-password') errorMessage = 'Senha incorreta.';
-      if (firebaseError.code === 'auth/email-already-in-use') errorMessage = 'Este email já está em uso.';
-      if (firebaseError.code === 'auth/weak-password') errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
-      
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
+      if (isLogin) await signInWithEmailAndPassword(auth, email, password);
+      else await createUserWithEmailAndPassword(auth, email, password);
+    } catch (err: any) {
+      setError("Falha na autenticação. Verifique credenciais.");
+    } finally { setLoading(false); }
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-900 items-center justify-center p-4 relative overflow-hidden">
-      {/* Background glow effects */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
-
-      <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden relative z-10">
-        {/* Header Section */}
-        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 p-8 text-center relative overflow-hidden flex flex-col items-center">
-          <div className="absolute top-0 left-0 w-full h-full bg-black opacity-20"></div>
-          <IdCard className="w-12 h-12 text-blue-400 relative z-10 mb-2 drop-shadow-lg" />
-          <h2 className="text-3xl font-bold text-white relative z-10 mb-2">TagFinder</h2>
-          <p className="text-blue-100 relative z-10 text-sm opacity-90">
-            {isLogin ? 'Bem-vindo de volta!' : 'Crie sua conta gratuitamente'}
-          </p>
+    <div className="flex min-h-screen bg-slate-950 items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600"></div>
+      
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 shadow-[20px_20px_0px_rgba(0,0,0,0.5)] overflow-hidden relative z-10 transition-all">
+        <div className="bg-slate-800 p-10 text-center border-b border-slate-700">
+          <div className="inline-flex p-5 bg-blue-600 text-white mb-6 shadow-xl"><IdCard size={40} /></div>
+          <h2 className="text-4xl font-black text-white tracking-tighter mb-2">TagFinder</h2>
+          <p className="text-blue-400 text-[10px] font-black tracking-[0.3em] opacity-80 italic">Sistema de Inventário Industrial</p>
         </div>
 
-        {/* Form Section */}
-        <div className="p-8">
-          <form onSubmit={handleAuth} className="space-y-6">
-            
-            {/* Error Alert */}
+        <div className="p-10">
+          <form onSubmit={handleAuth} className="space-y-8">
             {error && (
-              <div className="bg-red-900/20 border-l-4 border-red-500 p-4 rounded-md flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-200">{error}</p>
+              <div className="bg-red-600/10 border-l-4 border-red-600 p-4 flex items-center gap-4">
+                <AlertCircle className="text-red-600" size={20} />
+                <p className="text-[10px] font-black text-red-500 tracking-widest">{error}</p>
               </div>
             )}
 
-            {/* Email Input */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300 block" htmlFor="email">
-                Email
-              </label>
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-500 tracking-widest ml-1">ID Operacional (Email)</label>
               <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2.5 bg-slate-700 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none placeholder-slate-400"
-                  placeholder="seu@email.com"
-                />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={20} />
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-12 pr-4 py-5 bg-slate-950 border border-slate-800 text-white outline-none focus:border-blue-600 font-bold transition-all text-sm placeholder-slate-700" placeholder="usuario@empresa.com" />
               </div>
             </div>
 
-            {/* Password Input */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300 block" htmlFor="password">
-                Senha
-              </label>
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-500 tracking-widest ml-1">Chave de Acesso (Senha)</label>
               <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-500 transition-colors">
-                  <Lock className="w-5 h-5" />
-                </div>
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 py-2.5 bg-slate-700 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none placeholder-slate-400"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={20} />
+                <input type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-12 pr-12 py-5 bg-slate-950 border border-slate-800 text-white outline-none focus:border-blue-600 font-bold transition-all text-sm placeholder-slate-700" placeholder="••••••••" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-600 hover:text-white transition-colors">{showPassword ? <EyeOff size={20} /> : <Eye size={20} />}</button>
               </div>
             </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:shadow-blue-600/30 transition-all transform active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
-            >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  {isLogin ? 'Entrar' : 'Criar Conta'}
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
+            <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-xs tracking-[0.2em] py-6 shadow-2xl transition-all active:translate-y-1 flex items-center justify-center gap-3">
+              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>{isLogin ? 'Iniciar Sessão' : 'Cadastrar Acesso'} <ArrowRight size={20} /></>}
             </button>
           </form>
 
-          {/* Toggle Login/Signup */}
-          <div className="mt-8 text-center">
-            <p className="text-slate-400">
-              {isLogin ? 'Não tem uma conta?' : 'Já tem uma conta?'}
-              <button
-                onClick={() => {
-                    setIsLogin(!isLogin);
-                    setError(null);
-                }}
-                className="ml-2 text-blue-400 font-semibold hover:text-blue-300 transition-colors"
-              >
-                {isLogin ? 'Cadastre-se' : 'Faça Login'}
-              </button>
-            </p>
+          <div className="mt-10 text-center">
+            <button onClick={() => { setIsLogin(!isLogin); setError(null); }} className="text-[10px] font-black tracking-widest text-slate-500 hover:text-blue-400 transition-all">
+              {isLogin ? 'Solicitar Novo Cadastro' : 'Já possui credenciais? Entrar'}
+            </button>
           </div>
         </div>
       </div>
+      
+      <div className="absolute bottom-10 text-slate-800 text-[10px] font-black tracking-[0.5em] pointer-events-none">Secure Industrial Gateway &bull; v2.5</div>
     </div>
   );
 };
