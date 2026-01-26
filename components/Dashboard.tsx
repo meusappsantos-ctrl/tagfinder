@@ -78,14 +78,13 @@ const getDriveFileId = (url: string) => {
 
 const cleanTagName = (tag: string) => {
   if (!tag) return "";
-  // Limpeza radical de qualquer prefixo redundante como "Item:", "Tag:" ou "Ativo:"
-  return String(tag).replace(/^(Item|Tag|Ativo):\s*/gi, '').split('|')[0].trim();
+  // Limpeza radical de prefixos conforme solicitado (ex: remove "Item:", "Tag:", "TW:")
+  return String(tag).replace(/^(Item|Tag|Ativo|ITEM|TW):\s*/gi, '').split('|')[0].trim();
 };
 
 const isKeyVisible = (k: string) => {
   if (!k) return false;
   const key = k.toUpperCase();
-  // Esconde campos que contenham a palavra ITEM ou informações de sistema que não devem ser editadas manualmente
   return !key.includes('__EMPTY') && !key.includes('GEOLOCALIZAÇÃO') && !key.includes('LINK MAPS') && !key.includes('ITEM') && k.trim() !== "";
 };
 
@@ -137,7 +136,6 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
         maxZoom: 22,
         zoomSnap: 0.1,
         zoomDelta: 0.5,
-        wheelPxPerZoomLevel: 120,
         zoomAnimation: true,
         fadeAnimation: true
     }).setView([-15.7801, -47.9292], 4);
@@ -175,8 +173,10 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
           if (item.groupType === 'tw_local') color = '#a855f7';
           if (item.groupType === 'downloads') color = '#06b6d4';
           
+          const tagToDisplay = cleanTagName(item.data?.["Tag"] || item.data?.["Nome"] || "S/ TAG");
+          
           const marker = L.circleMarker([lat, lng], { 
-              radius: 8, 
+              radius: 10, 
               fillColor: color, 
               color: '#ffffff', 
               weight: 2, 
@@ -184,14 +184,16 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
               fillOpacity: 1 
           });
 
-          marker.bindTooltip(cleanTagName(item.data?.["Tag"] || "Item"), { 
+          marker.bindTooltip(tagToDisplay, { 
               permanent: true, 
               direction: 'top', 
-              className: 'tag-label', 
-              offset: [0, -8] 
+              className: `tag-label tag-label-${item.groupType}`, 
+              offset: [0, -14] 
           });
 
-          marker.on('click', () => {
+          // Redirecionamento Direto ao clicar no marcador
+          marker.on('click', (e) => {
+              L.DomEvent.stopPropagation(e);
               onSelectItem(item);
           });
 
@@ -201,7 +203,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
         }
       }
     });
-    if (hasGeo) mapInstance.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+    if (hasGeo) mapInstance.current.fitBounds(bounds, { padding: [100, 100], maxZoom: 18 });
   }, [items]);
 
   return (
@@ -210,7 +212,7 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
         <div className="p-4 sm:p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/90 backdrop-blur-xl relative z-20">
           <div className="flex items-center gap-3">
              <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><Globe size={20} /></div>
-             <div><h3 className="font-black text-white text-base tracking-tighter uppercase leading-none">Mapa Geral Satélite</h3><p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Google Earth Engine</p></div>
+             <div><h3 className="font-black text-white text-base tracking-tighter uppercase leading-none">Navegação Satélite de Ativos</h3><p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Industrial Intelligence Engine</p></div>
           </div>
           <button onClick={onClose} className="p-2.5 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 rounded-xl transition-all border border-slate-700 text-slate-400"><X size={24} /></button>
         </div>
@@ -237,6 +239,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
   });
 
   const isDownload = groupKey === 'downloads';
+  const isTW = groupKey === 'tw_local';
   const originalLink = item.data?.["Link"] || "";
   const driveId = getDriveFileId(originalLink);
   
@@ -272,6 +275,29 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
           </div>
           <div className="flex-1 overflow-y-auto bg-slate-950 flex flex-col pb-10">
               <div className="p-6 sm:p-12 space-y-10">
+                  
+                  {/* Destaque Técnico para Painéis e Ativos Industriais */}
+                  <div className="bg-blue-500/5 border border-blue-500/10 p-8 rounded-[2.5rem] relative overflow-hidden shadow-2xl">
+                      <div className="absolute top-0 right-0 p-12 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                      <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center justify-between">
+                         <div className="flex items-center gap-6">
+                            <div className={`p-6 rounded-3xl ${config.lightColor} ${config.textColor} shadow-xl border border-white/10`}><config.icon size={40} /></div>
+                            <div>
+                               <h3 className="text-3xl font-black text-white uppercase tracking-tighter">{cleanTagName(editData["Tag"] || editData["Nome"] || "Ficha Técnica")}</h3>
+                               <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1 flex items-center gap-2"><CheckCircle size={12} className="text-emerald-500" /> Registro Ativo no Sistema</p>
+                            </div>
+                         </div>
+                         <div className="flex items-center gap-4">
+                            <div className="text-right hidden sm:block">
+                               <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Categoria Técnica</p>
+                               <p className="text-sm font-black text-white uppercase">{config.label}</p>
+                            </div>
+                            <div className="w-px h-10 bg-slate-800 hidden sm:block"></div>
+                            <Activity size={24} className="text-blue-500 animate-pulse" />
+                         </div>
+                      </div>
+                  </div>
+
                   {!isDownload ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="bg-slate-900/80 p-6 rounded-3xl border border-slate-800 flex flex-col gap-6 shadow-2xl relative overflow-hidden">
@@ -309,7 +335,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                               <FileDown size={24} className="group-hover:translate-y-1 transition-transform" /> DOWNLOAD DIRETO
                            </button>
                         </div>
-                        {previewUrl && !isEditing ? (
+                        {previewUrl && !isEditing && (
                            <div className="space-y-4">
                               <div className="flex items-center justify-between px-2">
                                 <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Eye size={14} className="text-cyan-500" /> Pré-visualização</h4>
@@ -318,20 +344,15 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                                  <iframe src={previewUrl} className="w-full h-full border-none" allow="autoplay; encrypted-media"></iframe>
                               </div>
                            </div>
-                        ) : !isEditing && (
-                           <div className="p-10 text-center bg-slate-900/40 rounded-3xl border border-dashed border-slate-800">
-                             <FileText size={48} className="mx-auto text-slate-700 mb-4 opacity-20" />
-                             <p className="text-slate-500 text-[10px] font-black uppercase">Visualização Indisponível</p>
-                           </div>
                         )}
                     </div>
                   )}
                   {location && !isEditing && !isDownload && <MiniMapPreview lat={location.lat} lng={location.lng} tag={editData["Tag"]} />}
                   <div className="space-y-6">
-                      <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2 flex items-center gap-2"><Database size={14} className="text-blue-500" /> {isDownload ? 'Metadados do Arquivo' : 'Ficha Técnica'}</h4>
+                      <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-2 flex items-center gap-2"><Database size={14} className="text-blue-500" /> Detalhes Técnicos do Equipamento</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                           {Object.entries(editData).map(([key, value]) => isKeyVisible(key) && (
-                              <div key={key} className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800/60 shadow-lg group">
+                              <div key={key} className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800/60 shadow-lg group hover:border-blue-500/30 transition-all">
                                 <h5 className="text-[9px] font-black text-slate-600 uppercase mb-3 opacity-70">{key}</h5>
                                 {isEditing ? <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm outline-none font-bold uppercase focus:border-blue-500 transition-all shadow-inner" /> : <p className="text-white font-black text-sm uppercase break-all">{String(value)}</p>}
                               </div>
@@ -341,7 +362,7 @@ const ItemDetail: React.FC<{ item: GroupItem; groupKey: string; config: any; use
                   {isEditing && (
                       <div className="grid grid-cols-2 gap-4 pt-10">
                           <button onClick={() => { if(confirm("Remover permanentemente?")) { onDelete(item.id); onClose(); } }} className="py-5 rounded-2xl bg-red-600/10 text-red-500 border border-red-500/20 font-black uppercase text-[10px] flex justify-center items-center gap-2 active:scale-95 transition-all">EXCLUIR REGISTRO</button>
-                          <button onClick={handleSave} disabled={isSaving} className={`py-5 rounded-2xl text-white font-black uppercase text-[10px] ${config.color} shadow-2xl flex justify-center items-center gap-3 active:scale-95 transition-all`}>{isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16} />} SALVAR</button>
+                          <button onClick={handleSave} disabled={isSaving} className={`py-5 rounded-2xl text-white font-black uppercase text-[10px] ${config.color} shadow-2xl flex justify-center items-center gap-3 active:scale-95 transition-all`}>{isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16} />} SALVAR ALTERAÇÕES</button>
                       </div>
                   )}
               </div>
@@ -356,7 +377,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
   const isDownload = config.id === 'downloads';
   const isPainel = config.id === 'painel';
   
-  // Tag do Ativo - Limpa o termo 'Item:' para mostrar apenas a identificação técnica (ex: TW-1080KS-50)
   const tagValue = cleanTagName(data["Tag"] || data["Nome"] || item.content);
   const hasGeo = !!data["Geolocalização"];
 
@@ -380,7 +400,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
           </div>
         </div>
         
-        {/* Badge de Localização / Categoria */}
         {!isTW && (
           <div className="flex items-center gap-2 text-slate-400 bg-slate-900/30 px-3 py-1.5 rounded-lg border border-white/5">
             <span className="text-[9px] font-black truncate tracking-tight uppercase">
@@ -394,7 +413,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
                 <div className="px-3 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-[9px] text-purple-300 flex items-center gap-2 shadow-sm">
                     <Locate size={12} className="text-purple-500" />
                     <span className="truncate tracking-widest uppercase font-black">
-                        {/* Exibe diretamente a Tag da TW como solicitado */}
                         <HighlightedText text={tagValue} highlight={searchHighlight} />
                     </span>
                 </div>
@@ -420,20 +438,6 @@ const ItemCard: React.FC<{ item: GroupItem; config: any; onSelect: () => void; o
                         </div>
                     ))}
                 </div>
-            </div>
-        )}
-
-        {isDownload && (
-            <div className="px-3 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-[9px] text-cyan-300 flex items-center gap-2">
-                <Link size={12} className="text-cyan-500" />
-                <span className="truncate tracking-widest uppercase font-mono"><HighlightedText text={data["Link"] || "SEM LINK"} highlight={searchHighlight} /></span>
-            </div>
-        )}
-
-        {!isPainel && !isDownload && !isTW && (data["IP / Equipamento"] || data["IP"]) && (
-            <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[9px] text-blue-300 font-mono flex items-center gap-2">
-                <Database size={12} className="text-blue-500" />
-                <span className="truncate tracking-widest uppercase"><HighlightedText text={data["IP / Equipamento"] || data["IP"]} highlight={searchHighlight} /></span>
             </div>
         )}
 
@@ -464,6 +468,11 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     const q = query(collection(db, groupKey), orderBy('createdAt', 'desc'));
     return onSnapshot(q, (snap) => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })) as GroupItem[]));
   }, [groupKey]);
+
+  // Se initialSelectedItem mudar (ex: do mapa), atualiza o estado local
+  useEffect(() => {
+    if (initialSelectedItem) setSelectedItem(initialSelectedItem);
+  }, [initialSelectedItem]);
 
   const handleGetLocation = () => {
     setGettingLocation(true);
@@ -504,7 +513,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
 
                 const newDoc = doc(collection(db, groupKey));
                 batch.set(newDoc, { 
-                  // Salva conteúdo limpo (sem prefixo Item:)
                   content: cleanTagName(rowTag), 
                   data: itemData, 
                   userId: user.uid, 
@@ -542,7 +550,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
           data["Link Maps"] = `https://maps.google.com/?q=${location.lat},${location.lng}`;
       }
       
-      // Salva conteúdo limpo diretamente
       const tagLabel = cleanTagName(formData.tag || formData.nome || "S/ Tag");
       await addDoc(collection(db, groupKey), { 
         content: tagLabel, 
@@ -572,7 +579,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
     return s.split(/\s+/).every(t => searchable.includes(t));
   });
 
-  if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => setSelectedItem(null)} onDelete={handleDeleteItem} />;
+  if (selectedItem) return <ItemDetail item={selectedItem} groupKey={groupKey} config={config} user={user} onClose={() => { setSelectedItem(null); if(initialSelectedItem) onBack(); }} onDelete={handleDeleteItem} />;
 
   return (
     <div className="pb-24 animate-fadeIn">
@@ -585,7 +592,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                  <div className={`p-1 rounded bg-gradient-to-br ${config.gradient} text-white`}><Icon size={12} /></div>
                  <span className="text-[9px] uppercase tracking-widest font-black text-slate-500">{config.label}</span>
               </div>
-              <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tighter leading-none">{groupKey === 'downloads' ? 'Arquivos & Links' : 'Inventário Técnico'}</h2>
+              <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tighter leading-none">{groupKey === 'downloads' ? 'Arquivos & Links' : 'Inventário Industrial'}</h2>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -598,7 +605,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
               </>
             )}
             <button onClick={() => setIsModalOpen(true)} className={`flex px-6 py-3 rounded-xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] tracking-widest items-center gap-2 shadow-xl hover:scale-105 active:scale-95 transition-all`}>
-              <Plus size={16} /> Novo Registro
+              <Plus size={16} /> Novo Cadastro
             </button>
           </div>
         </div>
@@ -630,7 +637,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Tag do Painel</label>
                     <input type="text" placeholder="Ex: vc-1080ks-13.06" required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-base font-black outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
                   </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Switch 1</label>
@@ -645,7 +651,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                       <input type="text" placeholder="IP/TAG" value={formData.switch3} onChange={e => setFormData({...formData, switch3: e.target.value})} className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white text-[10px] font-black outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
                     </div>
                   </div>
-
                   <div className="space-y-3">
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2"><MapPin size={12} /> Sincronização GPS</label>
                     <button type="button" onClick={handleGetLocation} className="w-full py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-[9px] font-black uppercase text-blue-400 flex items-center justify-center gap-3 active:scale-95 transition-all shadow-inner">
@@ -654,7 +659,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                     </button>
                     {location && <MiniMapPreview lat={location.lat} lng={location.lng} tag={formData.tag} />}
                   </div>
-
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2">Local / Sistema</label>
                     <select value={formData.local} onChange={e => setFormData({...formData, local: e.target.value, equipamento: ''})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-black uppercase outline-none focus:border-blue-500 appearance-none cursor-pointer shadow-inner">
@@ -671,7 +675,6 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                       <option value="NOVO">+ NOVO ATIVO</option>
                     </select>
                   </div>
-
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-slate-500 uppercase ml-2 flex items-center gap-2"><MessageSquare size={12} /> Observações</label>
                     <textarea placeholder="..." value={formData.obs} onChange={e => setFormData({...formData, obs: e.target.value})} className="w-full px-5 py-4 bg-slate-700/50 border border-slate-600 rounded-2xl text-white text-xs font-bold outline-none focus:border-blue-500 min-h-[100px] shadow-inner" />
@@ -684,7 +687,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                       <input type="text" placeholder="TW-..." required value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm font-black uppercase outline-none focus:border-blue-500 shadow-inner" />
                   </div>
                   <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase">Descrição Local</label>
+                      <label className="text-[9px] font-black text-slate-500 ml-1 uppercase">Descrição Local TW</label>
                       <input type="text" placeholder="Marco de Manobra" value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm font-black uppercase outline-none shadow-inner" />
                   </div>
                   <div className="space-y-1">
@@ -734,7 +737,7 @@ const GroupPage: React.FC<{ groupKey: GroupType; user: User; onBack: () => void;
                 </div>
               )}
               <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl text-white bg-gradient-to-r ${config.gradient} font-black uppercase text-[10px] shadow-2xl transition-all active:scale-95 ring-1 ring-white/10`}>
-                 {loading ? <Loader2 className="animate-spin" size={20}/> : "SALVAR CADASTRO"}
+                 {loading ? <Loader2 className="animate-spin" size={20}/> : "SALVAR CADASTRO TÉCNICO"}
               </button>
             </form>
           </div>
@@ -775,11 +778,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   return (
     <div className="min-h-screen bg-slate-900 p-6 sm:p-14 text-white relative overflow-hidden flex flex-col">
       <div className="absolute top-[-15%] left-[-10%] w-[60%] h-[60%] bg-blue-600/5 blur-[150px] rounded-full pointer-events-none"></div>
-      {isMapModalOpen && <GlobalMapModal items={allData} onClose={() => setIsMapModalOpen(false)} onSelectItem={(item) => { setItemFromSearch(item); setCurrentView(item.groupType as GroupType); setIsMapModalOpen(false); }} />}
+      {isMapModalOpen && <GlobalMapModal items={allData} onClose={() => setIsMapModalOpen(false)} onSelectItem={(item) => { 
+          setItemFromSearch(item); 
+          setCurrentView(item.groupType as GroupType); 
+          setIsMapModalOpen(false); 
+      }} />}
       <div className="max-w-6xl mx-auto w-full space-y-12 animate-fadeIn relative z-10 flex-1">
         <header className="flex flex-col gap-10">
           <div className="flex justify-between items-center">
-            <div className="inline-flex items-center gap-3 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-[8px] font-black uppercase tracking-widest text-blue-400 shadow-2xl"><IdCard size={16} /> TAGFINDER</div>
+            <div className="inline-flex items-center gap-3 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-[8px] font-black uppercase tracking-widest text-blue-400 shadow-2xl"><IdCard size={16} /> TAGFINDER Enterprise</div>
             <button onClick={() => signOut(auth)} className="p-4 bg-slate-800 border border-slate-700 rounded-2xl text-slate-500 hover:text-red-500 transition-all shadow-2xl active:scale-95"><LogOut size={22} /></button>
           </div>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-10">
