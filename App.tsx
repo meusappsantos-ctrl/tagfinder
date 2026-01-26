@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from './services/firebase';
@@ -17,23 +16,22 @@ const App: React.FC = () => {
       setAuthState(currentUser ? AuthState.AUTHENTICATED : AuthState.UNAUTHENTICATED);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
 
   if (authState === AuthState.LOADING) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 transition-colors">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-          <p className="text-slate-400 font-medium">Carregando...</p>
+          <Loader2 className="w-10 h-10 animate-spin text-blue-600 dark:text-blue-400" />
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Carregando Sistema...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {user ? <Dashboard user={user} /> : <Login />}
     </div>
   );
