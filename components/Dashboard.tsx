@@ -390,13 +390,18 @@ const ItemDetail: React.FC<{
                       {Object.entries(editData).map(([key, value]) => {
                         if (key.includes('__EMPTY')) return null;
                         if (!isEditing && (key === "Tag" || key === "Local Selecionável" || key === "Tag do Painel" || key === "Tag da Câmera" || key === "Tag Switch" || key === "Local de Instalação")) return null;
-                        if (key.toLowerCase() === "geolocalização" || key.toLowerCase() === "link maps" || key.toLowerCase() === "link") return null;
+                        if (!isEditing && (key.toLowerCase() === "geolocalização" || key.toLowerCase() === "link maps" || key.toLowerCase() === "link")) return null;
                         
                         return (
                           <div key={key} className="space-y-2">
                             <h5 className="text-[8px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest transition-colors">{key}</h5>
                             {isEditing ? (
-                              <input type="text" value={String(value)} onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-none px-3 py-2 text-slate-900 dark:text-white font-bold text-sm outline-none focus:border-blue-500 transition-all uppercase shadow-inner" />
+                              <input 
+                                type={key.toLowerCase() === "link" ? "url" : "text"} 
+                                value={String(value)} 
+                                onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} 
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-none px-3 py-2 text-slate-900 dark:text-white font-bold text-sm outline-none focus:border-blue-500 transition-all uppercase shadow-inner" 
+                              />
                             ) : (
                               <p className="text-slate-900 dark:text-white font-black text-sm p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 uppercase break-words transition-colors">{String(value)}</p>
                             )}
@@ -724,6 +729,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                             </div>
                           </div>
                        </div>
+                     ) : currentView === 'downloads' ? (
+                       <div className="space-y-4">
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">1. Título do Arquivo</label>
+                             <input placeholder="Manual de Operação.pdf" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-cyan-500 transition-colors" value={formData.nome || ""} onChange={e => setFormData({...formData, nome: e.target.value})} />
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">2. Link (URL do Drive/Nuvem)</label>
+                             <input type="url" placeholder="https://drive.google.com/..." required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-cyan-500 transition-colors font-mono text-xs" value={formData.link || ""} onChange={e => setFormData({...formData, link: e.target.value})} />
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">3. Categoria / Área</label>
+                             <input placeholder="Documentos Técnicos" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-cyan-500 transition-colors" value={formData.categoria || formData.local || ""} onChange={e => setFormData({...formData, categoria: e.target.value})} />
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">4. Descrição Curta</label>
+                             <textarea placeholder="Referência rápida para manutenção..." className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-cyan-500 transition-colors min-h-[80px] text-xs" value={formData.desc || formData.obs || ""} onChange={e => setFormData({...formData, desc: e.target.value})} />
+                          </div>
+                       </div>
                      ) : (
                        <div className="space-y-4">
                           <input placeholder="IDENTIFICAÇÃO (TAG / NOME)" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-blue-500 transition-colors" value={formData.tag || formData.nome || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'nome' : 'tag']: e.target.value})} />
@@ -828,7 +852,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-100 dark:border-slate-900 text-center transition-colors">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.1.0</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.1.2</p>
       </footer>
     </div>
   );
