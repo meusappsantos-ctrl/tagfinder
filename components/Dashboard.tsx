@@ -157,7 +157,7 @@ const ConfirmModal: React.FC<{
              <AlertTriangle size={24} />
              <h3 className="font-black uppercase tracking-widest text-sm">{title}</h3>
           </div>
-          <p className="text-slate-600 dark:text-slate-400 text-xs font-bold leading-relaxed uppercase tracking-tight">{message}</p>
+          <p className="text-slate-600 dark:text-slate-400 text-xs font-bold leading-relaxed tracking-tight">{message}</p>
         </div>
         <div className="grid grid-cols-2 border-t border-slate-100 dark:border-slate-800">
           <button 
@@ -273,7 +273,7 @@ const ItemCard: React.FC<{
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 tracking-widest mb-0.5 uppercase">{config.label}</p>
-            <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white truncate tracking-tighter group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase">
+            <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white truncate tracking-tighter group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
               <HighlightedText text={tagValue} highlight={searchHighlight} />
             </h3>
           </div>
@@ -293,21 +293,31 @@ const ItemCard: React.FC<{
         <div className="grid grid-cols-1 gap-1.5">
           <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1.5 border-l-2 border-slate-200 dark:border-slate-700">
              {isDownload ? <Database size={10} className="text-cyan-500" /> : <Locate size={10} />}
-             <span className="text-[9px] font-bold truncate tracking-tight uppercase">
+             <span className="text-[9px] font-bold truncate tracking-tight">
                 <HighlightedText text={data["Local Selecionável"] || data["Local"] || data["Categoria"] || data["Local de Instalação"] || "N/A"} highlight={searchHighlight} />
              </span>
           </div>
           
           <div className="flex flex-wrap gap-1.5 mt-1">
-             {(data["Endereço IP"] || data["IP"]) && (
-               <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[8px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tighter">
-                  IP: {data["Endereço IP"] || data["IP"]}
+             {isPainel ? (
+               <div className="flex flex-wrap gap-1">
+                 {data["Switch 1"] && <span className="text-[7px] font-black px-1 py-0.5 bg-blue-500/10 text-blue-600">SW1: {data["Switch 1"]}</span>}
+                 {data["Switch 2"] && <span className="text-[7px] font-black px-1 py-0.5 bg-indigo-500/10 text-indigo-600">SW2: {data["Switch 2"]}</span>}
+                 {data["Switch 3"] && <span className="text-[7px] font-black px-1 py-0.5 bg-purple-500/10 text-purple-600">SW3: {data["Switch 3"]}</span>}
                </div>
-             )}
-             {data["Marca"] && (
-               <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[8px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">
-                  {data["Marca"]}
-               </div>
+             ) : (
+               <>
+                 {(data["Endereço IP"] || data["IP"]) && (
+                   <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[8px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tighter">
+                      IP: {data["Endereço IP"] || data["IP"]}
+                   </div>
+                 )}
+                 {data["Marca"] && (
+                   <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[8px] font-black text-indigo-600 dark:text-indigo-400">
+                      {data["Marca"]}
+                   </div>
+                 )}
+               </>
              )}
           </div>
         </div>
@@ -334,7 +344,18 @@ const ItemDetail: React.FC<{
 }> = ({ item, groupKey, config, user, onClose, onDeleteRequest }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [editData, setEditData] = useState<Record<string, any>>(item.data || {});
+  const [editData, setEditData] = useState<Record<string, any>>(() => {
+    // Inicializar dados filtrando chaves redundantes ou vazias
+    const filtered: Record<string, any> = {};
+    Object.entries(item.data || {}).forEach(([k, v]) => {
+      const key = k.toLowerCase();
+      // Não carregar chaves de sistema ou redundantes na edição para evitar duplicidade
+      if (!key.startsWith('__empty') && !['switch1', 'switch2', 'switch3', 'tag', 'nome'].includes(key)) {
+        filtered[k] = v;
+      }
+    });
+    return filtered;
+  });
   
   const isDownload = groupKey === 'downloads';
   const previewUrl = isDownload ? getDrivePreviewUrl(editData["Link"] || editData["link"]) : null;
@@ -357,7 +378,7 @@ const ItemDetail: React.FC<{
               <div className="flex items-center gap-4 min-w-0">
                 <button onClick={onClose} className="p-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 transition-colors"><ArrowLeft size={20} /></button>
                 <div className="min-w-0">
-                  <h2 className="text-lg sm:text-2xl font-black truncate uppercase tracking-tighter">{cleanTagName(editData["Tag"] || editData["Nome"] || editData["Tag do Painel"] || editData["Tag da Câmera"] || editData["Tag Switch"] || "Ficha Técnica")}</h2>
+                  <h2 className="text-lg sm:text-2xl font-black truncate tracking-tighter">{cleanTagName(editData["Tag"] || editData["Nome"] || editData["Tag do Painel"] || editData["Tag da Câmera"] || editData["Tag Switch"] || "Ficha Técnica")}</h2>
                   <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 tracking-widest uppercase mt-1">{config.label} &bull; Registro de Ativo</p>
                 </div>
               </div>
@@ -388,22 +409,23 @@ const ItemDetail: React.FC<{
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                       {Object.entries(editData).map(([key, value]) => {
-                        if (key.includes('__EMPTY')) return null;
-                        if (!isEditing && (key === "Tag" || key === "Local Selecionável" || key === "Tag do Painel" || key === "Tag da Câmera" || key === "Tag Switch" || key === "Local de Instalação")) return null;
-                        if (!isEditing && (key.toLowerCase() === "geolocalização" || key.toLowerCase() === "link maps" || key.toLowerCase() === "link")) return null;
+                        const lowKey = key.toLowerCase();
+                        if (lowKey.includes('__empty')) return null;
+                        if (!isEditing && (key === "Tag" || lowKey.includes("local selecionável") || lowKey.includes("tag do painel") || lowKey.includes("tag da câmera") || lowKey.includes("tag switch") || lowKey.includes("local de instalação"))) return null;
+                        if (!isEditing && (lowKey === "geolocalização" || lowKey === "link maps" || lowKey === "link")) return null;
                         
                         return (
                           <div key={key} className="space-y-2">
                             <h5 className="text-[8px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest transition-colors">{key}</h5>
                             {isEditing ? (
                               <input 
-                                type={key.toLowerCase() === "link" ? "url" : "text"} 
+                                type={lowKey === "link" ? "url" : "text"} 
                                 value={String(value)} 
                                 onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} 
-                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-none px-3 py-2 text-slate-900 dark:text-white font-bold text-sm outline-none focus:border-blue-500 transition-all uppercase shadow-inner" 
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-none px-3 py-2 text-slate-900 dark:text-white font-bold text-sm outline-none focus:border-blue-500 transition-all shadow-inner" 
                               />
                             ) : (
-                              <p className="text-slate-900 dark:text-white font-black text-sm p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 uppercase break-words transition-colors">{String(value)}</p>
+                              <p className="text-slate-900 dark:text-white font-black text-sm p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 break-words transition-colors">{String(value)}</p>
                             )}
                           </div>
                         );
@@ -503,22 +525,64 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     try {
       const finalLocal = formData.local === "NOVO" ? formData.customLocal : formData.local;
       const finalEquip = formData.equipamento === "NOVO" ? formData.customEquipamento : formData.equipamento;
-      let dataToSave: any = { ...formData };
+      
+      let dataToSave: any = {};
+      
       if (currentView === 'painel') {
-          dataToSave = { "Tag do Painel": formData.tag, "Switch 1": formData.switch1, "Switch 2": formData.switch2, "Switch 3": formData.switch3, "Local Selecionável": finalLocal, "Equipamentos": finalEquip, "Observações": formData.obs };
+          dataToSave = { 
+            "Tag do Painel": formData.tag, 
+            "Switch 1": formData.switch1, 
+            "Switch 2": formData.switch2, 
+            "Switch 3": formData.switch3, 
+            "Local": finalLocal, 
+            "Ativo Principal": finalEquip, 
+            "Observações": formData.obs 
+          };
       } else if (currentView === 'ctv') {
-          dataToSave = { "Tag da Câmera": formData.tag, "Endereço IP": formData.ip, "Painel de Conexão": formData.painel, "Máscara de Rede": formData.mascara, "Local de Instalação": finalLocal, "Switch CFTV": formData.switch_cftv, "Observações": formData.obs };
+          dataToSave = { 
+            "Tag da Câmera": formData.tag, 
+            "Endereço IP": formData.ip, 
+            "Painel de Conexão": formData.painel, 
+            "Máscara de Rede": formData.mascara, 
+            "Local de Instalação": finalLocal, 
+            "Switch CFTV": formData.switch_cftv, 
+            "Observações": formData.obs 
+          };
       } else if (currentView === 'telecom') {
-          dataToSave = { "Tag Switch": formData.tag, "Endereço IP": formData.ip, "Máscara de Rede": formData.mascara, "Marca": formData.marca, "Painel": formData.painel, "Local de Instalação": finalLocal, "Equipamento": finalEquip, "Observações": formData.obs };
+          dataToSave = { 
+            "Tag Switch": formData.tag, 
+            "Endereço IP": formData.ip, 
+            "Máscara de Rede": formData.mascara, 
+            "Marca": formData.marca, 
+            "Painel": formData.painel, 
+            "Local de Instalação": finalLocal, 
+            "Equipamento": finalEquip, 
+            "Observações": formData.obs 
+          };
       } else if (currentView === 'downloads') {
-          dataToSave = { "Nome": formData.nome, "Link": formData.link, "Categoria": formData.local || formData.categoria, "Descrição": formData.desc || formData.obs };
+          dataToSave = { 
+            "Nome": formData.nome, 
+            "Link": formData.link, 
+            "Categoria": formData.local || formData.categoria, 
+            "Descrição": formData.desc || formData.obs 
+          };
+      } else {
+          // Default para outros grupos (Embarcados, Local TW)
+          dataToSave = {
+            "Tag": formData.tag,
+            "Local": finalLocal,
+            "Observações": formData.obs || formData.desc
+          };
       }
+
       if (location && currentView !== 'downloads') {
           dataToSave["Geolocalização"] = `${location.lat.toFixed(7)}, ${location.lng.toFixed(7)}`;
           dataToSave["Link Maps"] = `https://maps.google.com/?q=${location.lat},${location.lng}`;
       }
+
       const tag = formData.tag || formData.nome || "Novo Registro";
       await addDoc(collection(db, currentView), { content: tag, data: dataToSave, userId: user.uid, userEmail: user.email, createdAt: serverTimestamp() });
+      
       setIsModalOpen(false);
       setFormData({ tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', equipamento: '', customLocal: '', customEquipamento: '', obs: '', desc: '', link: '', nome: '', painel: '', mascara: '', switch_cftv: '', marca: '' });
       setLocation(null);
@@ -549,7 +613,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 sm:p-6 sticky top-0 z-50 flex justify-between items-center shadow-2xl transition-colors">
            <div className="flex items-center gap-4 min-w-0">
               <button onClick={() => setCurrentView('home')} className="p-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 transition-colors"><ArrowLeft size={20} /></button>
-              <h2 className="text-xl font-black uppercase tracking-tighter truncate text-slate-900 dark:text-white">{config.label}</h2>
+              <h2 className="text-xl font-black truncate text-slate-900 dark:text-white">{config.label}</h2>
            </div>
            <div className="flex items-center gap-2">
              <button 
@@ -570,10 +634,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
             <input 
               type="text" 
-              placeholder={`FILTRAR EM ${config.label.toUpperCase()}...`} 
+              placeholder={`Filtrar em ${config.label}...`} 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
-              className="w-full pl-12 pr-4 py-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white font-black text-sm uppercase tracking-widest focus:border-blue-500 shadow-2xl transition-colors" 
+              className="w-full pl-12 pr-4 py-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-900 dark:text-white font-black text-sm tracking-widest focus:border-blue-500 shadow-2xl transition-colors" 
             />
           </div>
 
@@ -598,7 +662,53 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                     <button onClick={() => setIsModalOpen(false)}><X size={20} /></button>
                   </div>
                   <form onSubmit={handleSave} className="p-6 space-y-5 overflow-y-auto bg-white dark:bg-slate-900 transition-colors">
-                     {currentView === 'ctv' ? (
+                     {currentView === 'painel' ? (
+                       <div className="space-y-4">
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">1. Localização Satélite</label>
+                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-orange-600 dark:text-orange-400 active:bg-orange-900/10">
+                                {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
+                                {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
+                             </button>
+                             {location && <MiniMapPreview lat={location.lat} lng={location.lng} color="#f97316" />}
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">2. Tag do Painel</label>
+                             <input placeholder="Ex: vc-1080ks-13.06" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-orange-500 transition-colors" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
+                          </div>
+                          
+                          <div className="space-y-3">
+                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">3. Switches do Painel</label>
+                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <input placeholder="SW 1 IP/TAG" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
+                                <input placeholder="SW 2 IP/TAG" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
+                                <input placeholder="SW 3 IP/TAG" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
+                             </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                               <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">4. Local / Área</label>
+                               <select required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value})}>
+                                    <option value="">Selecione Local...</option>
+                                    {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
+                               </select>
+                            </div>
+                            <div className="space-y-2">
+                               <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">5. Ativo Principal</label>
+                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-900 dark:text-white disabled:opacity-30 outline-none focus:border-orange-500 transition-colors" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
+                                    <option value="">Selecione Ativo...</option>
+                                    {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                               </select>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">6. Observações</label>
+                             <textarea placeholder="Detalhes adicionais sobre o painel..." className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white min-h-[100px] outline-none focus:border-orange-500 transition-colors text-xs font-bold" value={formData.obs || ""} onChange={e => setFormData({...formData, obs: e.target.value})} />
+                          </div>
+                       </div>
+                     ) : currentView === 'ctv' ? (
                        <div className="space-y-4">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">1. Localização Satélite</label>
@@ -611,35 +721,35 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">2. Tag da Câmera</label>
-                                <input placeholder="CAM-XXX" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-blue-500 transition-colors" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
+                                <input placeholder="CAM-XXX" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-blue-500 transition-colors" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">3. Endereço IP</label>
-                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-blue-500 transition-colors" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
+                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-blue-500 transition-colors" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
                              </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">4. Painel de Conexão</label>
-                                <input placeholder="PN-XXX" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-blue-500 transition-colors" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
+                                <input placeholder="PN-XXX" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-blue-500 transition-colors" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">5. Máscara de Rede</label>
-                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-blue-500 transition-colors" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
+                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-blue-500 transition-colors" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
                              </div>
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">6. Local de Instalação</label>
-                             <select required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold uppercase text-xs text-slate-900 dark:text-white outline-none focus:border-blue-500 transition-colors" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
+                             <select required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-blue-500 transition-colors" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
                                   <option value="">Selecione Local...</option>
                                   {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
                                   <option value="NOVO">+ NOVO LOCAL</option>
                              </select>
-                             {formData.local === "NOVO" && <input placeholder="NOME DO NOVO LOCAL" required value={formData.customLocal || ""} className="w-full p-4 bg-blue-100 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 text-slate-900 dark:text-white font-bold uppercase mt-2" onChange={e => setFormData({...formData, customLocal: e.target.value})} />}
+                             {formData.local === "NOVO" && <input placeholder="NOME DO NOVO LOCAL" required value={formData.customLocal || ""} className="w-full p-4 bg-blue-100 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 text-slate-900 dark:text-white font-bold mt-2" onChange={e => setFormData({...formData, customLocal: e.target.value})} />}
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">7. Switch CFTV (Referência)</label>
-                             <input placeholder="SW-CFTV-01" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-blue-500 transition-colors" value={formData.switch_cftv || ""} onChange={e => setFormData({...formData, switch_cftv: e.target.value})} />
+                             <input placeholder="SW-CFTV-01" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-blue-500 transition-colors" value={formData.switch_cftv || ""} onChange={e => setFormData({...formData, switch_cftv: e.target.value})} />
                           </div>
                        </div>
                      ) : currentView === 'telecom' ? (
@@ -655,74 +765,38 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">2. Tag Switch</label>
-                                <input placeholder="SW-TEL-XXX" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-indigo-500 transition-colors" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
+                                <input placeholder="SW-TEL-XXX" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-indigo-500 transition-colors" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">3. Endereço IP</label>
-                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-indigo-500 transition-colors" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
+                                <input placeholder="10.X.X.X" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-indigo-500 transition-colors" value={formData.ip || ""} onChange={e => setFormData({...formData, ip: e.target.value})} />
                              </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">4. Máscara de Rede</label>
-                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-indigo-500 transition-colors" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
+                                <input placeholder="255.255.255.0" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-indigo-500 transition-colors" value={formData.mascara || ""} onChange={e => setFormData({...formData, mascara: e.target.value})} />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">5. Marca</label>
-                                <input placeholder="Cisco / Dell / HP" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-indigo-500 transition-colors" value={formData.marca || ""} onChange={e => setFormData({...formData, marca: e.target.value})} />
+                                <input placeholder="Cisco / Dell / HP" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-indigo-500 transition-colors" value={formData.marca || ""} onChange={e => setFormData({...formData, marca: e.target.value})} />
                              </div>
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">6. Painel de Conexão</label>
-                             <input placeholder="PN-XXX" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-indigo-500 transition-colors" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
+                             <input placeholder="PN-XXX" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-indigo-500 transition-colors" value={formData.painel || ""} onChange={e => setFormData({...formData, painel: e.target.value})} />
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">7. Local de Instalação</label>
-                               <select required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold uppercase text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
+                               <select required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-colors" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value, customLocal: ''})}>
                                     <option value="">Selecione Local...</option>
                                     {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
                                </select>
                             </div>
                             <div className="space-y-2">
                                <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">8. Equipamento</label>
-                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold uppercase text-xs text-slate-900 dark:text-white disabled:opacity-30 outline-none focus:border-indigo-500 transition-colors" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
-                                    <option value="">Selecione Ativo...</option>
-                                    {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-                               </select>
-                            </div>
-                          </div>
-                       </div>
-                     ) : currentView === 'painel' ? (
-                       <div className="space-y-4">
-                          <div className="space-y-2">
-                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">1. Localização Satélite</label>
-                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-orange-600 dark:text-orange-400 active:bg-orange-900/10">
-                                {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
-                                {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
-                             </button>
-                             {location && <MiniMapPreview lat={location.lat} lng={location.lng} color="#f97316" />}
-                          </div>
-                          <div className="space-y-2">
-                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">2. Tag do Painel</label>
-                             <input placeholder="TAG-XXX" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-orange-500 transition-colors" value={formData.tag || ""} onChange={e => setFormData({...formData, tag: e.target.value})} />
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                             <input placeholder="SW 1 IP" className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
-                             <input placeholder="SW 2 IP" className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
-                             <input placeholder="SW 3 IP" className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                               <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">Local / Área</label>
-                               <select required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold uppercase text-xs text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.local || ""} onChange={e => setFormData({...formData, local: e.target.value})}>
-                                    <option value="">Selecione Local...</option>
-                                    {Object.keys(SYSTEM_DATA).map(l => <option key={l} value={l}>{l}</option>)}
-                               </select>
-                            </div>
-                            <div className="space-y-2">
-                               <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">Ativo Principal</label>
-                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold uppercase text-xs text-slate-900 dark:text-white disabled:opacity-30 outline-none focus:border-orange-500 transition-colors" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
+                               <select required disabled={!formData.local} className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-900 dark:text-white disabled:opacity-30 outline-none focus:border-indigo-500 transition-colors" value={formData.equipamento || ""} onChange={e => setFormData({...formData, equipamento: e.target.value})}>
                                     <option value="">Selecione Ativo...</option>
                                     {formData.local && SYSTEM_DATA[formData.local]?.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                                </select>
@@ -733,7 +807,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                        <div className="space-y-4">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">1. Título do Arquivo</label>
-                             <input placeholder="Manual de Operação.pdf" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-cyan-500 transition-colors" value={formData.nome || ""} onChange={e => setFormData({...formData, nome: e.target.value})} />
+                             <input placeholder="Manual de Operação.pdf" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-cyan-500 transition-colors" value={formData.nome || ""} onChange={e => setFormData({...formData, nome: e.target.value})} />
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">2. Link (URL do Drive/Nuvem)</label>
@@ -741,18 +815,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">3. Categoria / Área</label>
-                             <input placeholder="Documentos Técnicos" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-cyan-500 transition-colors" value={formData.categoria || formData.local || ""} onChange={e => setFormData({...formData, categoria: e.target.value})} />
+                             <input placeholder="Documentos Técnicos" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-cyan-500 transition-colors" value={formData.categoria || formData.local || ""} onChange={e => setFormData({...formData, categoria: e.target.value})} />
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">4. Descrição Curta</label>
-                             <textarea placeholder="Referência rápida para manutenção..." className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-cyan-500 transition-colors min-h-[80px] text-xs" value={formData.desc || formData.obs || ""} onChange={e => setFormData({...formData, desc: e.target.value})} />
+                             <textarea placeholder="Referência rápida para manutenção..." className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-cyan-500 transition-colors min-h-[80px] text-xs" value={formData.desc || formData.obs || ""} onChange={e => setFormData({...formData, desc: e.target.value})} />
                           </div>
                        </div>
                      ) : (
                        <div className="space-y-4">
-                          <input placeholder="IDENTIFICAÇÃO (TAG / NOME)" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-blue-500 transition-colors" value={formData.tag || formData.nome || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'nome' : 'tag']: e.target.value})} />
-                          <input placeholder="LOCALIZAÇÃO / CATEGORIA" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold uppercase outline-none focus:border-blue-500 transition-colors" value={formData.local || formData.categoria || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'categoria' : 'local']: e.target.value})} />
-                          <textarea placeholder="OBSERVAÇÕES..." className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white min-h-[100px] uppercase outline-none focus:border-blue-500 transition-colors" value={formData.obs || ""} onChange={e => setFormData({...formData, obs: e.target.value})} />
+                          <input placeholder="Identificação (Tag / Nome)" required className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-blue-500 transition-colors" value={formData.tag || formData.nome || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'nome' : 'tag']: e.target.value})} />
+                          <input placeholder="Localização / Categoria" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:border-blue-500 transition-colors" value={formData.local || formData.categoria || ""} onChange={e => setFormData({...formData, [currentView === 'downloads' ? 'categoria' : 'local']: e.target.value})} />
+                          <textarea placeholder="Observações..." className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white min-h-[100px] outline-none focus:border-blue-500 transition-colors" value={formData.obs || ""} onChange={e => setFormData({...formData, obs: e.target.value})} />
                        </div>
                      )}
                      <button type="submit" disabled={loading} className="w-full py-5 bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest shadow-2xl active:translate-y-1 transition-all">
@@ -778,7 +852,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <ConfirmModal 
           isOpen={!!itemToDelete}
           title="Atenção: Exclusão Permanente"
-          message={`VOCÊ ESTÁ PRESTES A EXCLUIR O REGISTRO "${cleanTagName(itemToDelete?.data?.["Tag"] || itemToDelete?.data?.["Tag da Câmera"] || itemToDelete?.data?.["Tag Switch"] || itemToDelete?.data?.["Tag do Painel"] || itemToDelete?.data?.["Nome"] || "")}". ESTA AÇÃO É IRREVERSÍVEL E REMOVERÁ TODOS OS DADOS DO BANCO.`}
+          message={`Você está prestes a excluir o registro "${cleanTagName(itemToDelete?.data?.["Tag"] || itemToDelete?.data?.["Tag da Câmera"] || itemToDelete?.data?.["Tag Switch"] || itemToDelete?.data?.["Tag do Painel"] || itemToDelete?.data?.["Nome"] || "")}". Esta ação é irreversível e removerá todos os dados do banco.`}
           onConfirm={handleConfirmDelete}
           onCancel={() => setItemToDelete(null)}
           isLoading={isDeleting}
@@ -824,7 +898,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       </header>
 
       <div className="mb-10 animate-fadeIn">
-        <h2 className="text-3xl sm:text-6xl font-black tracking-tighter uppercase leading-none text-slate-900 dark:text-white">Olá, <span className="text-blue-600">{user.email?.split('@')[0]}</span></h2>
+        <h2 className="text-3xl sm:text-6xl font-black tracking-tighter leading-none text-slate-900 dark:text-white">Olá, <span className="text-blue-600">{user.email?.split('@')[0]}</span></h2>
         <div className="h-1.5 w-20 bg-blue-600 mt-5 mb-8"></div>
         
         <button 
@@ -833,7 +907,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         >
           <div className="p-3 bg-blue-600 text-white shadow-lg group-hover:scale-110 transition-transform"><Globe size={24} /></div>
           <div className="text-left">
-             <h3 className="text-lg font-black uppercase text-slate-900 dark:text-white tracking-tighter">MAPA GERAL SATÉLITE</h3>
+             <h3 className="text-lg font-black uppercase text-slate-900 dark:text-white tracking-tighter">Mapa Geral Satélite</h3>
              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Visualize todos os ativos técnicos no terreno</p>
           </div>
           <ArrowRight className="ml-auto text-slate-300 dark:text-slate-700 group-hover:text-blue-600 transition-colors" size={24} />
@@ -852,7 +926,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-100 dark:border-slate-900 text-center transition-colors">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.1.2</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.1.8</p>
       </footer>
     </div>
   );
