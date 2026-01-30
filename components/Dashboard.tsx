@@ -20,7 +20,7 @@ import {
   MapPin, Loader2, Edit, X, Globe, Trash2, Crosshair, Server, 
   CheckCircle, Database, Activity, Locate, 
   Link, Download, Sun, Moon,
-  Navigation, Eye, MessageSquare, AlertTriangle, ShieldCheck, Wifi
+  Navigation, Eye, MessageSquare, AlertTriangle, ShieldCheck, Wifi, Layers
 } from 'lucide-react';
 
 declare const L: any;
@@ -65,6 +65,18 @@ const groupsConfig = {
 
 const normalizeText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const cleanTagName = (tag: string) => (tag || "").replace(/^(Item|Tag|Ativo|ITEM|TW|Cam|Tag do Painel|Tag Switch|Tag da Câmera):\s*/gi, '').split('|')[0].trim();
+
+// Função auxiliar para buscar chaves de switch de forma flexível (com ou sem espaço)
+const getSwitchData = (data: any, index: number) => {
+  if (!data) return { val: null, port: null };
+  const keys = Object.keys(data);
+  const swKey = keys.find(k => k.replace(/\s/g, '').toLowerCase() === `switch${index}`);
+  const portKey = keys.find(k => k.replace(/\s/g, '').toLowerCase() === `switch${index}porta`);
+  return {
+    val: swKey ? data[swKey] : null,
+    port: portKey ? data[portKey] : null
+  };
+};
 
 const getCoordinatesFromData = (data: any) => {
   if (!data) return null;
@@ -301,9 +313,15 @@ const ItemCard: React.FC<{
           <div className="flex flex-wrap gap-1.5 mt-1">
              {isPainel ? (
                <div className="flex flex-wrap gap-1">
-                 {data["Switch 1"] && <span className="text-[7px] font-black px-1 py-0.5 bg-blue-500/10 text-blue-600">SW1: {data["Switch 1"]}</span>}
-                 {data["Switch 2"] && <span className="text-[7px] font-black px-1 py-0.5 bg-indigo-500/10 text-indigo-600">SW2: {data["Switch 2"]}</span>}
-                 {data["Switch 3"] && <span className="text-[7px] font-black px-1 py-0.5 bg-purple-500/10 text-purple-600">SW3: {data["Switch 3"]}</span>}
+                 {[1, 2, 3].map(i => {
+                   const sw = getSwitchData(data, i);
+                   if (!sw.val) return null;
+                   return (
+                     <span key={i} className="text-[7px] font-black px-1 py-0.5 bg-blue-500/10 text-blue-600">
+                        SW{i}: {sw.val} {sw.port && `[P: ${sw.port}]`}
+                     </span>
+                   );
+                 })}
                </div>
              ) : (
                <>
@@ -345,12 +363,10 @@ const ItemDetail: React.FC<{
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Record<string, any>>(() => {
-    // Inicializar dados filtrando chaves redundantes ou vazias
     const filtered: Record<string, any> = {};
     Object.entries(item.data || {}).forEach(([k, v]) => {
       const key = k.toLowerCase();
-      // Não carregar chaves de sistema ou redundantes na edição para evitar duplicidade
-      if (!key.startsWith('__empty') && !['switch1', 'switch2', 'switch3', 'tag', 'nome'].includes(key)) {
+      if (!key.startsWith('__empty') && !['tag', 'nome'].includes(key)) {
         filtered[k] = v;
       }
     });
@@ -358,6 +374,7 @@ const ItemDetail: React.FC<{
   });
   
   const isDownload = groupKey === 'downloads';
+  const isPainel = groupKey === 'painel';
   const previewUrl = isDownload ? getDrivePreviewUrl(editData["Link"] || editData["link"]) : null;
 
   const handleSave = async () => {
@@ -401,6 +418,35 @@ const ItemDetail: React.FC<{
                  </div>
               )}
 
+              {isPainel && !isEditing && (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 space-y-6 transition-colors">
+                  <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4 transition-colors">
+                    <Wifi className="text-orange-500" size={20} />
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Arquitetura de Conexão</h4>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    {[1, 2, 3].map(i => {
+                      const sw = getSwitchData(editData, i);
+                      if (!sw.val) return null;
+                      return (
+                        <div key={i} className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex flex-col gap-3">
+                           <div className="flex items-center justify-between">
+                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Switch {i}</span>
+                             <Layers size={12} className="text-orange-500" />
+                           </div>
+                           <p className="text-sm font-black text-slate-900 dark:text-white uppercase truncate">{sw.val}</p>
+                           {sw.port && (
+                             <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[7px] font-black px-1.5 py-0.5 bg-orange-500 text-white uppercase">Porta: {sw.port}</span>
+                             </div>
+                           )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {showMetadata && (
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 space-y-6 transition-colors">
                   <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4 transition-colors">
@@ -409,20 +455,25 @@ const ItemDetail: React.FC<{
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                       {Object.entries(editData).map(([key, value]) => {
-                        const lowKey = key.toLowerCase();
-                        if (lowKey.includes('__empty')) return null;
-                        if (!isEditing && (key === "Tag" || lowKey.includes("local selecionável") || lowKey.includes("tag do painel") || lowKey.includes("tag da câmera") || lowKey.includes("tag switch") || lowKey.includes("local de instalação"))) return null;
-                        if (!isEditing && (lowKey === "geolocalização" || lowKey === "link maps" || lowKey === "link")) return null;
+                        const lowKey = key.toLowerCase().replace(/\s/g, '');
+                        if (key.toLowerCase().includes('__empty')) return null;
+                        
+                        // Oculta campos de switch na visualização geral se não estiver editando (já mostrados na seção dedicada)
+                        if (!isEditing && isPainel && lowKey.startsWith("switch")) return null;
+
+                        // Oculta labels redundantes
+                        if (!isEditing && (key === "Tag" || key.toLowerCase().includes("local selecionável") || key.toLowerCase().includes("tag do painel") || key.toLowerCase().includes("tag da câmera") || key.toLowerCase().includes("tag switch") || key.toLowerCase().includes("local de instalação"))) return null;
+                        if (!isEditing && (key.toLowerCase() === "geolocalização" || key.toLowerCase() === "link maps" || key.toLowerCase() === "link")) return null;
                         
                         return (
                           <div key={key} className="space-y-2">
                             <h5 className="text-[8px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest transition-colors">{key}</h5>
                             {isEditing ? (
                               <input 
-                                type={lowKey === "link" ? "url" : "text"} 
+                                type={key.toLowerCase() === "link" ? "url" : "text"} 
                                 value={String(value)} 
                                 onChange={(e) => setEditData({ ...editData, [key]: e.target.value })} 
-                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-none px-3 py-2 text-slate-900 dark:text-white font-bold text-sm outline-none focus:border-blue-500 transition-all shadow-inner" 
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3 py-2 text-slate-900 dark:text-white font-bold text-sm outline-none focus:border-blue-500 transition-all shadow-inner" 
                               />
                             ) : (
                               <p className="text-slate-900 dark:text-white font-black text-sm p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 break-words transition-colors">{String(value)}</p>
@@ -470,7 +521,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<any>({ 
-    tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '', 
+    tag: '', local: '', ip: '', switch1: '', switch2: '', switch3: '',
     equipamento: '', customLocal: '', customEquipamento: '', obs: '', 
     desc: '', link: '', nome: '', painel: '', mascara: '', switch_cftv: '', marca: '' 
   });
@@ -567,7 +618,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             "Descrição": formData.desc || formData.obs 
           };
       } else {
-          // Default para outros grupos (Embarcados, Local TW)
           dataToSave = {
             "Tag": formData.tag,
             "Local": finalLocal,
@@ -678,11 +728,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                           </div>
                           
                           <div className="space-y-3">
-                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">3. Switches do Painel</label>
-                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <input placeholder="SW 1 IP/TAG" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
-                                <input placeholder="SW 2 IP/TAG" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
-                                <input placeholder="SW 3 IP/TAG" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
+                             <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">3. Switches do Painel (IP/TAG)</label>
+                             <div className="space-y-2">
+                                <input placeholder="Switch 1" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch1 || ""} onChange={e => setFormData({...formData, switch1: e.target.value})} />
+                                <input placeholder="Switch 2" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch2 || ""} onChange={e => setFormData({...formData, switch2: e.target.value})} />
+                                <input placeholder="Switch 3" className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-900 dark:text-white outline-none focus:border-orange-500 transition-colors" value={formData.switch3 || ""} onChange={e => setFormData({...formData, switch3: e.target.value})} />
                              </div>
                           </div>
 
@@ -712,7 +762,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                        <div className="space-y-4">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">1. Localização Satélite</label>
-                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-blue-600 dark:text-blue-400 active:bg-blue-900/10">
+                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-blue-600 dark:text-blue-400 active:bg-blue-900/10">
                                 {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
                                 {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
                              </button>
@@ -756,7 +806,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                        <div className="space-y-4">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-1">1. Localização Satélite</label>
-                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 active:bg-indigo-900/10">
+                             <button type="button" onClick={handleGetLocation} className="w-full py-4 border text-[9px] font-black uppercase flex items-center justify-center gap-3 transition-all bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 active:bg-indigo-900/10">
                                 {gettingLocation ? <Loader2 className="animate-spin" size={16}/> : location ? <CheckCircle className="text-emerald-500" size={16}/> : <Crosshair size={16}/>}
                                 {location ? "GPS SINCRONIZADO" : "CAPTURAR LOCALIZAÇÃO"}
                              </button>
@@ -926,7 +976,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-100 dark:border-slate-900 text-center transition-colors">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.1.8</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.2.2</p>
       </footer>
     </div>
   );
