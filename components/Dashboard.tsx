@@ -54,7 +54,7 @@ const SYSTEM_DATA: Record<string, string[]> = {
   "OVERLAND": ["TR-1083KS-03", "TR-1083KS-04", "SE-1084KS-22", "SE-1084KS-21", "TR-1084KS-02", "TR-1083KS-02", "EE-1084KS-01 (mts)", "EE-1083KS-01 (mts)", "SE-1083KS-02", "SE-1084KS-02"]
 };
 
-const groupsConfig = {
+const groupsConfig: Record<GroupType, any> = {
   ctv: { id: 'ctv', label: 'CFTV', icon: Tv, color: 'bg-blue-600', textColor: 'text-blue-600 dark:text-blue-400', lightColor: 'bg-blue-50 dark:bg-blue-900/30', borderColor: 'border-blue-200 dark:border-blue-800/50', gradient: 'from-blue-600 to-blue-800' },
   telecom: { id: 'telecom', label: 'Telecom', icon: Radio, color: 'bg-indigo-600', textColor: 'text-indigo-600 dark:text-indigo-400', lightColor: 'bg-indigo-50 dark:bg-indigo-900/30', borderColor: 'border-indigo-200 dark:border-indigo-800/50', gradient: 'from-indigo-600 to-indigo-800' },
   painel: { id: 'painel', label: 'Painéis', icon: Server, color: 'bg-orange-600', textColor: 'text-orange-600 dark:text-orange-400', lightColor: 'bg-orange-50 dark:bg-orange-900/30', borderColor: 'border-orange-200 dark:border-orange-800/50', gradient: 'from-orange-600 to-orange-800' },
@@ -66,7 +66,7 @@ const groupsConfig = {
 const normalizeText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const cleanTagName = (tag: string) => (tag || "").replace(/^(Item|Tag|Ativo|ITEM|TW|Cam|Tag do Painel|Tag Switch|Tag da Câmera):\s*/gi, '').split('|')[0].trim();
 
-// Função auxiliar para buscar chaves de switch de forma flexível (com ou sem espaço)
+// Função auxiliar para buscar chaves de switch de forma flexível
 const getSwitchData = (data: any, index: number) => {
   if (!data) return { val: null, port: null };
   const keys = Object.keys(data);
@@ -169,7 +169,7 @@ const ConfirmModal: React.FC<{
              <AlertTriangle size={24} />
              <h3 className="font-black uppercase tracking-widest text-sm">{title}</h3>
           </div>
-          <p className="text-slate-600 dark:text-slate-400 text-xs font-bold leading-relaxed tracking-tight">{message}</p>
+          <p className="text-slate-600 dark:text-slate-400 text-xs font-bold leading-relaxed tracking-tight whitespace-pre-wrap">{message}</p>
         </div>
         <div className="grid grid-cols-2 border-t border-slate-100 dark:border-slate-800">
           <button 
@@ -358,8 +358,9 @@ const ItemDetail: React.FC<{
   config: any; 
   user: User; 
   onClose: () => void; 
-  onDeleteRequest: (item: GroupItem) => void; 
-}> = ({ item, groupKey, config, user, onClose, onDeleteRequest }) => {
+  onDeleteRequest: (item: GroupItem) => void;
+  allData: GroupItem[];
+}> = ({ item, groupKey, config, user, onClose, onDeleteRequest, allData }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Record<string, any>>(() => {
@@ -378,10 +379,24 @@ const ItemDetail: React.FC<{
   const previewUrl = isDownload ? getDrivePreviewUrl(editData["Link"] || editData["link"]) : null;
 
   const handleSave = async () => {
+      const tagName = cleanTagName(editData["Tag"] || editData["Nome"] || editData["Tag do Painel"] || editData["Tag da Câmera"] || editData["Tag Switch"] || item.content);
+      
+      // Validação de Duplicidade na Edição
+      const duplicate = allData.find(i => {
+          if (i.id === item.id) return false;
+          const existingName = cleanTagName(i.data?.["Tag"] || i.data?.["Tag do Painel"] || i.data?.["Nome"] || i.data?.["Tag da Câmera"] || i.data?.["Tag Switch"] || i.content);
+          return existingName.trim().toLowerCase() === tagName.trim().toLowerCase();
+      });
+
+      if (duplicate) {
+          const categoryName = groupsConfig[duplicate.groupType as GroupType]?.label || duplicate.groupType;
+          const confirmUpdate = window.confirm(`ALERTA DE DUPLICIDADE:\nO nome "${tagName}" já está em uso na categoria "${categoryName}".\n\nDeseja salvar mesmo assim?`);
+          if (!confirmUpdate) return;
+      }
+
       setIsSaving(true);
       try {
-          const content = cleanTagName(editData["Tag"] || editData["Nome"] || editData["Tag do Painel"] || editData["Tag da Câmera"] || editData["Tag Switch"] || item.content);
-          await updateDoc(doc(db, groupKey, item.id), { data: editData, content });
+          await updateDoc(doc(db, groupKey, item.id), { data: editData, content: tagName });
           setIsEditing(false);
       } catch (e) { alert("Erro ao salvar"); } finally { setIsSaving(false); }
   };
@@ -457,11 +472,7 @@ const ItemDetail: React.FC<{
                       {Object.entries(editData).map(([key, value]) => {
                         const lowKey = key.toLowerCase().replace(/\s/g, '');
                         if (key.toLowerCase().includes('__empty')) return null;
-                        
-                        // Oculta campos de switch na visualização geral se não estiver editando (já mostrados na seção dedicada)
                         if (!isEditing && isPainel && lowKey.startsWith("switch")) return null;
-
-                        // Oculta labels redundantes
                         if (!isEditing && (key === "Tag" || key.toLowerCase().includes("local selecionável") || key.toLowerCase().includes("tag do painel") || key.toLowerCase().includes("tag da câmera") || key.toLowerCase().includes("tag switch") || key.toLowerCase().includes("local de instalação"))) return null;
                         if (!isEditing && (key.toLowerCase() === "geolocalização" || key.toLowerCase() === "link maps" || key.toLowerCase() === "link")) return null;
                         
@@ -572,6 +583,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validação de Duplicidade no Cadastro (Case Insensitive Global)
+    const tagName = (formData.tag || formData.nome || "").trim();
+    if (tagName) {
+        const duplicate = allData.find(i => {
+            const existingName = cleanTagName(i.data?.["Tag"] || i.data?.["Tag do Painel"] || i.data?.["Nome"] || i.data?.["Tag da Câmera"] || i.data?.["Tag Switch"] || i.content);
+            return existingName.trim().toLowerCase() === tagName.toLowerCase();
+        });
+
+        if (duplicate) {
+            const categoryName = groupsConfig[duplicate.groupType as GroupType]?.label || duplicate.groupType;
+            const confirmSave = window.confirm(`ALERTA DE DUPLICIDADE:\nO nome "${tagName}" já existe na categoria "${categoryName}".\n\nDeseja cadastrar duplicado assim mesmo?`);
+            if (!confirmSave) return;
+        }
+    }
+
     setLoading(true);
     try {
       const finalLocal = formData.local === "NOVO" ? formData.customLocal : formData.local;
@@ -896,13 +923,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             user={user} 
             onClose={() => setSelectedItem(null)} 
             onDeleteRequest={setItemToDelete}
+            allData={allData}
           />
         )}
         
         <ConfirmModal 
           isOpen={!!itemToDelete}
           title="Atenção: Exclusão Permanente"
-          message={`Você está prestes a excluir o registro "${cleanTagName(itemToDelete?.data?.["Tag"] || itemToDelete?.data?.["Tag da Câmera"] || itemToDelete?.data?.["Tag Switch"] || itemToDelete?.data?.["Tag do Painel"] || itemToDelete?.data?.["Nome"] || "")}". Esta ação é irreversível e removerá todos os dados do banco.`}
+          message={`Você está prestes a excluir o registro "${cleanTagName(itemToDelete?.data?.["Tag"] || itemToDelete?.data?.["Tag da Câmera"] || itemToDelete?.data?.["Tag Switch"] || itemToDelete?.data?.["Tag do Painel"] || itemToDelete?.data?.["Nome"] || "")}".\n\nEsta ação é irreversível e removerá todos os dados do banco.`}
           onConfirm={handleConfirmDelete}
           onCancel={() => setItemToDelete(null)}
           isLoading={isDeleting}
@@ -976,7 +1004,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-100 dark:border-slate-900 text-center transition-colors">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.2.2</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.2.3</p>
       </footer>
     </div>
   );
