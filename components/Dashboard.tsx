@@ -250,8 +250,8 @@ const GlobalMapModal: React.FC<{ items: GroupItem[], onClose: () => void, onSele
   }, [items]);
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-md">
-      <div className="bg-white dark:bg-slate-900 w-full h-[100vh] sm:h-[90vh] sm:max-w-6xl overflow-hidden flex flex-col border border-slate-200 dark:border-slate-700 shadow-2xl transition-colors">
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-0 bg-black backdrop-blur-md">
+      <div className="bg-white dark:bg-slate-900 w-full h-full overflow-hidden flex flex-col transition-colors">
         <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl relative z-20">
           <div className="flex items-center gap-3">
              <div className="p-2.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"><Globe size={20} /></div>
@@ -1004,7 +1004,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       </div>
 
       <footer className="mt-auto pt-8 border-t border-slate-100 dark:border-slate-900 text-center transition-colors">
-        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.2.3</p>
+        <p className="text-[8px] sm:text-[10px] font-black text-slate-300 dark:text-slate-800 uppercase tracking-[0.8em] opacity-30 italic">Corporate Asset Management &bull; V4.2.4</p>
       </footer>
     </div>
   );
